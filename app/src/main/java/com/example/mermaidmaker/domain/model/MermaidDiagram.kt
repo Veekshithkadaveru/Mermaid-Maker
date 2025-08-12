@@ -17,8 +17,9 @@ enum class DiagramType {
     SEQUENCE,
     CLASS,
     STATE,
-    ER,
+    ER_DIAGRAM,
     GANTT,
     PIE,
-    JOURNEY
+    JOURNEY,
+    GITGRAPH
 }
