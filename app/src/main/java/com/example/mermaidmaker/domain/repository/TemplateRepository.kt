@@ -9,5 +9,6 @@ interface TemplateRepository {
     suspend fun getTemplatesByType(type: DiagramType): Flow<List<Template>>
     suspend fun getTemplateById(id: String): Template?
     suspend fun insertTemplate(template: Template)
+    suspend fun updateTemplate(template: Template)
     suspend fun deleteTemplate(id: String)
 }

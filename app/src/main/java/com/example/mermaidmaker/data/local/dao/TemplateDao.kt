@@ -18,6 +18,9 @@ interface TemplateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTemplate(template: TemplateEntity)
 
+    @Update
+    suspend fun updateTemplate(template: TemplateEntity)
+
     @Query("DELETE FROM templates WHERE id = :id")
     suspend fun deleteTemplate(id: String)
 }

@@ -34,6 +34,10 @@ class TemplateRepositoryImpl @Inject constructor(
         templateDao.insertTemplate(template.toEntity())
     }
 
+    override suspend fun updateTemplate(template: Template) {
+        templateDao.updateTemplate(template.toEntity())
+    }
+
     override suspend fun deleteTemplate(id: String) {
         templateDao.deleteTemplate(id)
     }
