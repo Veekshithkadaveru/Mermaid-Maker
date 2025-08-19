@@ -5,9 +5,8 @@ import com.example.mermaidmaker.domain.model.MermaidDiagram
 import com.example.mermaidmaker.domain.repository.DiagramRepository
 import java.time.LocalDateTime
 import java.util.UUID
-import javax.inject.Inject
 
-class CreateDiagramUseCase @Inject constructor(
+class CreateDiagramUseCase(
     private val repository: DiagramRepository
 ) {
     suspend operator fun invoke(

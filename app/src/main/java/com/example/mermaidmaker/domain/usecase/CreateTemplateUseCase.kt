@@ -4,9 +4,8 @@ import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.domain.model.Template
 import com.example.mermaidmaker.domain.repository.TemplateRepository
 import java.util.UUID
-import javax.inject.Inject
 
-class CreateTemplateUseCase @Inject constructor(
+class CreateTemplateUseCase(
     private val repository: TemplateRepository
 ) {
     suspend operator fun invoke(

@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
 }
 
 android {
@@ -86,10 +85,9 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
     
-    // Hilt DI
-    implementation(libs.hilt.android)
-    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
-    ksp(libs.hilt.compiler)
+    // Koin DI
+    implementation(libs.koin.android)
+    implementation(libs.koin.androidx.compose)
     
     // Testing dependencies
     testImplementation(libs.junit)

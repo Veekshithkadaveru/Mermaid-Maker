@@ -22,15 +22,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.mermaidmaker.domain.model.DiagramType
+import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateDiagramScreen(
     navController: NavController,
-    viewModel: CreateDiagramViewModel = viewModel()
+    viewModel: CreateDiagramViewModel = koinViewModel()
 ) {
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }

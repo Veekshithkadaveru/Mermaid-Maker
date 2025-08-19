@@ -4,9 +4,8 @@ import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.domain.model.Template
 import com.example.mermaidmaker.domain.repository.TemplateRepository
 import kotlinx.coroutines.flow.Flow
-import javax.inject.Inject
 
-class GetTemplatesByTypeUseCase @Inject constructor(
+class GetTemplatesByTypeUseCase(
     private val repository: TemplateRepository
 ) {
     suspend operator fun invoke(diagramType: DiagramType): Flow<List<Template>> {

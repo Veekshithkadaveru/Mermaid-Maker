@@ -24,15 +24,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.mermaidmaker.domain.model.MermaidDiagram
+import org.koin.androidx.compose.koinViewModel
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeScreen(
     navController: NavController,
-    viewModel: HomeViewModel = viewModel()
+    viewModel: HomeViewModel = koinViewModel()
 ) {
     val diagrams by viewModel.diagrams.collectAsState()
     

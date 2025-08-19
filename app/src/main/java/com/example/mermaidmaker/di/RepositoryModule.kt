@@ -4,25 +4,9 @@ import com.example.mermaidmaker.data.repository.DiagramRepositoryImpl
 import com.example.mermaidmaker.data.repository.TemplateRepositoryImpl
 import com.example.mermaidmaker.domain.repository.DiagramRepository
 import com.example.mermaidmaker.domain.repository.TemplateRepository
-import dagger.Binds
-import dagger.Module
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
+import org.koin.dsl.module
 
-@Module
-@InstallIn(SingletonComponent::class)
-abstract class RepositoryModule {
-
-    @Binds
-    @Singleton
-    abstract fun bindDiagramRepository(
-        diagramRepositoryImpl: DiagramRepositoryImpl
-    ): DiagramRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindTemplateRepository(
-        templateRepositoryImpl: TemplateRepositoryImpl
-    ): TemplateRepository
+val repositoryModule = module {
+    single<DiagramRepository> { DiagramRepositoryImpl(get()) }
+    single<TemplateRepository> { TemplateRepositoryImpl(get()) }
 }

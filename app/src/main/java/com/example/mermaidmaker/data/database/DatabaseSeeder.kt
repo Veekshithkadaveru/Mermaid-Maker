@@ -4,16 +4,12 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.example.mermaidmaker.data.template.TemplateLoader
 import com.example.mermaidmaker.data.template.TemplateVersionManager
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class DatabaseSeeder @Inject constructor(
-    @ApplicationContext private val context: Context,
+class DatabaseSeeder(
+    private val context: Context,
     private val templateLoader: TemplateLoader
 ) {
     private val prefs: SharedPreferences by lazy {

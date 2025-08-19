@@ -5,9 +5,8 @@ import com.example.mermaidmaker.domain.model.Template
 import com.example.mermaidmaker.domain.repository.TemplateRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
 
-class GetBuiltInTemplatesUseCase @Inject constructor(
+class GetBuiltInTemplatesUseCase(
     private val templateRepository: TemplateRepository
 ) {
     suspend operator fun invoke(): Flow<List<Template>> {

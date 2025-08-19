@@ -1,9 +1,8 @@
 package com.example.mermaidmaker.domain.usecase
 
 import com.example.mermaidmaker.data.database.DatabaseSeeder
-import javax.inject.Inject
 
-class InitializeTemplatesUseCase @Inject constructor(
+class InitializeTemplatesUseCase(
     private val databaseSeeder: DatabaseSeeder
 ) {
     suspend operator fun invoke() {

@@ -7,9 +7,7 @@ import com.example.mermaidmaker.domain.model.MermaidDiagram
 import com.example.mermaidmaker.domain.repository.DiagramRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
-
-class DiagramRepositoryImpl @Inject constructor(
+class DiagramRepositoryImpl(
     private val diagramDao: DiagramDao
 ) : DiagramRepository {
 

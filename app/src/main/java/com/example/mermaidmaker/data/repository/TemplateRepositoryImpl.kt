@@ -8,9 +8,7 @@ import com.example.mermaidmaker.domain.model.Template
 import com.example.mermaidmaker.domain.repository.TemplateRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
-
-class TemplateRepositoryImpl @Inject constructor(
+class TemplateRepositoryImpl(
     private val templateDao: TemplateDao
 ) : TemplateRepository {
 

@@ -2,11 +2,8 @@ package com.example.mermaidmaker.data.template
 
 import com.example.mermaidmaker.domain.repository.TemplateRepository
 import kotlinx.coroutines.flow.first
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class TemplateLoader @Inject constructor(
+class TemplateLoader(
     private val templateRepository: TemplateRepository
 ) {
     
