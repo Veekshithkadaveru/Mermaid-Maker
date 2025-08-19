@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Mermaid Editor</title>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto', sans-serif;
+            background-color: #1e1e1e;
+            overflow: hidden;
+        }
+        
+        .editor-container {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .CodeMirror {
+            height: 100% !important;
+            font-size: 14px;
+            line-height: 1.5;
+            font-family: 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        
+        .CodeMirror-line {
+            padding-left: 10px;
+        }
+        
+        .CodeMirror-linenumber {
+            padding: 0 8px 0 0;
+            min-width: 20px;
+            text-align: right;
+            color: #6c7680;
+        }
+        
+        /* Mermaid syntax highlighting */
+        .cm-mermaid-keyword {
+            color: #c792ea;
+            font-weight: bold;
+        }
+        
+        .cm-mermaid-node {
+            color: #82aaff;
+        }
+        
+        .cm-mermaid-arrow {
+            color: #89ddff;
+            font-weight: bold;
+        }
+        
+        .cm-mermaid-string {
+            color: #c3e88d;
+        }
+        
+        .cm-mermaid-comment {
+            color: #546e7a;
+            font-style: italic;
+        }
+        
+        .cm-mermaid-bracket {
+            color: #ff5370;
+            font-weight: bold;
+        }
+        
+        .cm-mermaid-operator {
+            color: #89ddff;
+        }
+        
+        .cm-mermaid-number {
+            color: #f78c6c;
+        }
+        
+        /* Error highlighting */
+        .CodeMirror-lint-error {
+            background: rgba(255, 83, 112, 0.2);
+            border-left: 3px solid #ff5370;
+        }
+        
+        /* Selection and cursor */
+        .CodeMirror-selected {
+            background: rgba(130, 170, 255, 0.2) !important;
+        }
+        
+        .CodeMirror-cursor {
+            border-left: 2px solid #ffcb6b;
+        }
+    </style>
+</head>
+<body>
+    <div class="editor-container">
+        <textarea id="mermaid-editor"></textarea>
+    </div>
+
+    <!-- CodeMirror JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/brace-fold.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/selection/active-line.min.js"></script>
+
+    <script>
+        // Define Mermaid syntax highlighting mode
+        CodeMirror.defineMode("mermaid", function() {
+            return {
+                token: function(stream, state) {
+                    // Skip whitespace
+                    if (stream.eatSpace()) return null;
+                    
+                    // Comments (lines starting with %%)
+                    if (stream.match(/^%%.*$/)) {
+                        return "mermaid-comment";
+                    }
+                    
+                    // Diagram type keywords
+                    if (stream.match(/^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|gitgraph|mindmap|timeline|sankey|xychart|block|packet|architecture)\b/)) {
+                        return "mermaid-keyword";
+                    }
+                    
+                    // Direction keywords for graphs
+                    if (stream.match(/^(TD|TB|BT|RL|LR)\b/)) {
+                        return "mermaid-keyword";
+                    }
+                    
+                    // Node shapes and brackets
+                    if (stream.match(/[\[\](){}><]/)) {
+                        return "mermaid-bracket";
+                    }
+                    
+                    // Arrows and connections
+                    if (stream.match(/-->|->|-\.-|-.->|==>|==|--|\|\||::/)) {
+                        return "mermaid-arrow";
+                    }
+                    
+                    // String literals (quoted text)
+                    if (stream.match(/"[^"]*"/)) {
+                        return "mermaid-string";
+                    }
+                    
+                    // Node IDs and labels
+                    if (stream.match(/[A-Za-z_][A-Za-z0-9_]*/)) {
+                        return "mermaid-node";
+                    }
+                    
+                    // Numbers
+                    if (stream.match(/\d+/)) {
+                        return "mermaid-number";
+                    }
+                    
+                    // Operators and special characters
+                    if (stream.match(/[+\-*/%=<>!&|]/)) {
+                        return "mermaid-operator";
+                    }
+                    
+                    // Default: consume one character
+                    stream.next();
+                    return null;
+                }
+            };
+        });
+
+        // Initialize CodeMirror editor
+        let editor = CodeMirror.fromTextArea(document.getElementById("mermaid-editor"), {
+            mode: "mermaid",
+            theme: "material-darker",
+            lineNumbers: true,
+            lineWrapping: true,
+            matchBrackets: true,
+            autoCloseBrackets: true,
+            styleActiveLine: true,
+            foldGutter: true,
+            gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+            extraKeys: {
+                "Ctrl-Space": "autocomplete",
+                "Ctrl-Q": function(cm) { cm.foldCode(cm.getCursor()); }
+            },
+            placeholder: "Enter your Mermaid diagram syntax here...\n\nExample:\ngraph TD\n    A[Start] --> B[Process]\n    B --> C[End]"
+        });
+
+        // Auto-complete hints for Mermaid
+        CodeMirror.registerHelper("hint", "mermaid", function(editor) {
+            const cur = editor.getCursor();
+            const token = editor.getTokenAt(cur);
+            const start = token.start;
+            const end = cur.ch;
+            const word = token.string;
+
+            const hints = [
+                // Diagram types
+                "graph", "flowchart", "sequenceDiagram", "classDiagram", 
+                "stateDiagram", "erDiagram", "journey", "gantt", "pie", 
+                "gitgraph", "mindmap", "timeline",
+                
+                // Directions
+                "TD", "TB", "BT", "RL", "LR",
+                
+                // Common patterns
+                "A[Label]", "B(Round)", "C{Diamond}", "D((Circle))", 
+                "E>Flag]", "F[[Subroutine]]", "G[(Database)]",
+                
+                // Arrows
+                "-->", "->", "-.-", "-.->", "==>", "==", "---", "||"
+            ];
+
+            const filtered = hints.filter(h => h.toLowerCase().startsWith(word.toLowerCase()));
+            
+            return {
+                list: filtered,
+                from: CodeMirror.Pos(cur.line, start),
+                to: CodeMirror.Pos(cur.line, end)
+            };
+        });
+
+        // JavaScript Bridge for Android communication
+        class MermaidEditorBridge {
+            constructor() {
+                this.editor = editor;
+                this.setupEventListeners();
+            }
+
+            // Get current editor content
+            getContent() {
+                return this.editor.getValue();
+            }
+
+            // Set editor content
+            setContent(content) {
+                this.editor.setValue(content || "");
+            }
+
+            // Insert text at cursor position
+            insertText(text) {
+                this.editor.replaceSelection(text);
+                this.editor.focus();
+            }
+
+            // Clear editor content
+            clear() {
+                this.editor.setValue("");
+            }
+
+            // Set editor theme
+            setTheme(theme) {
+                this.editor.setOption("theme", theme);
+            }
+
+            // Set font size
+            setFontSize(size) {
+                const wrapper = this.editor.getWrapperElement();
+                wrapper.style.fontSize = size + "px";
+                this.editor.refresh();
+            }
+
+            // Focus editor
+            focus() {
+                this.editor.focus();
+            }
+
+            // Setup event listeners
+            setupEventListeners() {
+                this.editor.on("change", (instance, changeObj) => {
+                    // Notify Android about content changes
+                    if (window.Android && window.Android.onContentChanged) {
+                        window.Android.onContentChanged(instance.getValue());
+                    }
+                });
+
+                this.editor.on("cursorActivity", (instance) => {
+                    const cursor = instance.getCursor();
+                    if (window.Android && window.Android.onCursorPositionChanged) {
+                        window.Android.onCursorPositionChanged(cursor.line, cursor.ch);
+                    }
+                });
+            }
+
+            // Insert template
+            insertTemplate(templateContent) {
+                this.editor.setValue(templateContent);
+                this.editor.setCursor(0, 0);
+                this.editor.focus();
+            }
+
+            // Get cursor position
+            getCursorPosition() {
+                const cursor = this.editor.getCursor();
+                return { line: cursor.line, ch: cursor.ch };
+            }
+
+            // Set cursor position
+            setCursorPosition(line, ch) {
+                this.editor.setCursor(line, ch);
+                this.editor.focus();
+            }
+        }
+
+        // Initialize bridge
+        window.mermaidBridge = new MermaidEditorBridge();
+
+        // Expose methods globally for Android WebView
+        window.getContent = () => window.mermaidBridge.getContent();
+        window.setContent = (content) => window.mermaidBridge.setContent(content);
+        window.insertText = (text) => window.mermaidBridge.insertText(text);
+        window.clear = () => window.mermaidBridge.clear();
+        window.setTheme = (theme) => window.mermaidBridge.setTheme(theme);
+        window.setFontSize = (size) => window.mermaidBridge.setFontSize(size);
+        window.focus = () => window.mermaidBridge.focus();
+        window.insertTemplate = (content) => window.mermaidBridge.insertTemplate(content);
+
+        // Auto-focus when page loads
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                editor.focus();
+            }, 100);
+        });
+    </script>
+</body>
+</html>
