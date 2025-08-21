@@ -1,7 +1,6 @@
 package com.example.mermaidmaker.ui.diagrams
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -12,11 +11,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import com.example.mermaidmaker.domain.model.DiagramType
-import com.example.mermaidmaker.ui.editor.MermaidEditor
 import com.example.mermaidmaker.ui.editor.MermaidEditorViewModel
 import com.example.mermaidmaker.ui.editor.rememberMermaidEditorState
+import com.example.mermaidmaker.ui.preview.MermaidPreview
+import com.example.mermaidmaker.ui.preview.rememberMermaidPreviewState
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,10 +29,12 @@ fun CreateDiagramScreen(
     editorViewModel: MermaidEditorViewModel = koinViewModel()
 ) {
     var title by remember { mutableStateOf("") }
+    var showFullscreenPreview by remember { mutableStateOf(false) }
     val isSaving by viewModel.isSaving.collectAsState()
     val editorState = rememberMermaidEditorState(
         initialContent = ""
     )
+    val previewState = rememberMermaidPreviewState()
     
     val selectedDiagramType by editorViewModel.selectedDiagramType.collectAsState()
     val availableTemplates by editorViewModel.availableTemplates.collectAsState()
@@ -134,38 +138,66 @@ fun CreateDiagramScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
             
-            // Editor
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Mermaid Code",
-                    style = MaterialTheme.typography.titleMedium
+            // Cleaner UI: Single-pane tabs (Edit / Preview)
+            var selectedTab by remember { mutableStateOf(0) }
+            TabRow(selectedTabIndex = selectedTab) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Edit") }
                 )
-                Text(
-                    text = "Tap to edit",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Preview") }
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            OutlinedCard(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                // Use enhanced editor with syntax highlighting
-                com.example.mermaidmaker.ui.editor.SyntaxHighlightedEditor(
-                    content = editorState.content,
-                    onContentChanged = { content ->
-                        editorViewModel.updateContent(content)
-                        editorState.setContent(content) // Update state as well
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (selectedTab == 0) {
+                    // Editor only
+                    com.example.mermaidmaker.ui.editor.SyntaxHighlightedEditor(
+                        content = editorState.content,
+                        onContentChanged = { content ->
+                            editorViewModel.updateContent(content)
+                            editorState.setContent(content)
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    // Preview only
+                    MermaidPreview(
+                        content = editorContent,
+                        state = previewState,
+                        modifier = Modifier.fillMaxSize(),
+                        showControls = false
+                    )
+                }
+            }
+
+            // Fullscreen preview dialog
+            if (showFullscreenPreview) {
+                Dialog(
+                    onDismissRequest = { showFullscreenPreview = false },
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            TopAppBar(title = { Text("Preview") }, actions = {
+                                TextButton(onClick = { showFullscreenPreview = false }) { Text("Close") }
+                            })
+                            MermaidPreview(
+                                content = editorContent,
+                                state = rememberMermaidPreviewState(),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                            )
+                        }
+                    }
+                }
             }
             
             Spacer(modifier = Modifier.height(16.dp))

@@ -4,8 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
@@ -14,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -23,6 +23,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.mermaidmaker.ui.diagrams.CreateDiagramScreen
 import com.example.mermaidmaker.ui.home.HomeScreen
+import com.example.mermaidmaker.ui.preview.MermaidPreviewTest
 import com.example.mermaidmaker.ui.theme.MermaidMakerTheme
 
 class MainActivity : ComponentActivity() {
@@ -59,7 +60,10 @@ fun MainApp() {
                 CreateDiagramScreen(navController = navController)
             }
             composable("settings") {
-                SettingsScreen()
+                SettingsScreen(navController)
+            }
+            composable("preview_test") {
+                MermaidPreviewTest()
             }
         }
     }
@@ -97,11 +101,25 @@ fun BottomNavigation(navController: NavHostController) {
 }
 
 @Composable
-fun SettingsScreen() {
-    Text(
-        text = "Settings Screen",
-        modifier = Modifier.fillMaxSize()
-    )
+fun SettingsScreen(navController: NavHostController? = null) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Settings Screen",
+            style = MaterialTheme.typography.headlineSmall
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Button(
+            onClick = { navController?.navigate("preview_test") }
+        ) {
+            Text("Test Preview System")
+        }
+    }
 }
 
 data class BottomNavItem(
