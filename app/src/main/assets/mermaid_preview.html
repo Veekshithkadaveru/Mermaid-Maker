@@ -173,6 +173,8 @@
         let lastRenderedContent = '';
         let renderTimeout = null;
         let lastContentHash = '';
+        let renderWatchdog = null;
+        let lastSource = '';
         
         // DOM elements
         const statusElement = document.getElementById('status');
@@ -212,6 +214,13 @@
             errorElement.style.display = 'none';
             loadingElement.style.display = 'none';
         }
+
+        // Reset preview state (watchdog)
+        function resetPreviewState() {
+            try { if (renderTimeout) { clearTimeout(renderTimeout); renderTimeout = null; } } catch (e) {}
+            isRendering = false;
+            hideAllMessages();
+        }
         
         // Hash utility (simple)
         function hashString(str) {
@@ -237,12 +246,15 @@
             return false;
         }
 
+        // Recreate preview container DOM (force fresh shell)
+        function forceRecreatePreview() {
+            previewElement.innerHTML = '<div id="preview-scale"><div class="placeholder">Diagram preview will appear here</div></div>';
+        }
+
         // Main render function
         async function renderMermaid(source) {
             // Skip if already rendering the same content
-            if (isRendering || source === lastRenderedContent) {
-                return;
-            }
+            if (isRendering) return;
             
             // Clear any pending render
             if (renderTimeout) {
@@ -259,15 +271,31 @@
             
             isRendering = true;
             showLoading();
+            lastSource = source;
+            // Clear any prior watchdog
+            if (renderWatchdog) { clearTimeout(renderWatchdog); renderWatchdog = null; }
+            // Start watchdog (auto-retry if stuck)
+            renderWatchdog = setTimeout(() => {
+                if (isRendering) {
+                    console.warn('Render watchdog triggered, resetting and retrying...');
+                    try { mermaid.reset(); } catch (e) { /* ignore */ }
+                    isRendering = false;
+                    hideAllMessages();
+                    forceRecreatePreview();
+                    setTimeout(() => { renderMermaid(lastSource); }, 50);
+                }
+            }, 2000);
             
             try {
                 console.log('Rendering Mermaid diagram:', source.substring(0, 100) + '...');
                 
-                // Generate unique ID for this render
-                const diagramId = 'diagram_' + Date.now();
+                // Generate unique ID for this render (stable by hash to avoid mermaid caching glitches)
+                const diagramId = 'diagram_' + hashString(source);
                 lastContentHash = hashString(source);
                 
                 // Use Mermaid's render method
+                // Ensure a clean renderer
+                try { mermaid.reset(); } catch (e) { /* ignore */ }
                 const { svg, bindFunctions } = await mermaid.render(diagramId, source);
                 
                 // Build scaled wrapper and normalize SVG sizing
@@ -322,6 +350,11 @@
                 
             } finally {
                 isRendering = false;
+                loadingElement.style.display = 'none';
+                // Failsafe: hide loader after 1s in any case
+                setTimeout(() => { loadingElement.style.display = 'none'; }, 1000);
+                // Stop watchdog
+                if (renderWatchdog) { clearTimeout(renderWatchdog); renderWatchdog = null; }
             }
         }
         
@@ -332,6 +365,11 @@
             }
             
             renderTimeout = setTimeout(() => {
+                // Safety guard: if still rendering, clear and force a fresh pass
+                if (isRendering) {
+                    isRendering = false;
+                    loadingElement.style.display = 'none';
+                }
                 renderMermaid(source);
             }, delay);
         }
@@ -419,6 +457,7 @@
         window.zoomOut = zoomOut;
         window.restoreScaleForContent = restoreScaleForContent;
         window.saveScaleForContent = saveScaleForContent;
+        window.resetPreviewState = resetPreviewState;
         
         // Notify Android that WebView is ready
         console.log('Mermaid Preview ready, notifying Android');
