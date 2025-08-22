@@ -34,13 +34,22 @@ class MermaidPreviewState {
     val lastRenderedContent: StateFlow<String> = _lastRenderedContent.asStateFlow()
     
     private var webView: WebView? = null
+    private var queuedContent: String? = null
     
     internal fun setWebView(webView: WebView) {
         this.webView = webView
+        _isReady.value = false
+        queuedContent = null
     }
     
     internal fun setReady(ready: Boolean) {
         _isReady.value = ready
+        if (ready && queuedContent != null) {
+            Log.d("MermaidPreview", "WebView ready, rendering queued content")
+            val content = queuedContent!!
+            queuedContent = null
+            renderDiagram(content, debounced = false)
+        }
     }
     
     internal fun setLoading(loading: Boolean) {
@@ -60,20 +69,34 @@ class MermaidPreviewState {
      */
     fun renderDiagram(source: String, debounced: Boolean = true) {
         webView?.let { webView ->
-            if (_isReady.value) {
-                setLoading(true)
-                setError(null)
-                
-                val escapedSource = source.escapeForJs()
-                val jsFunction = if (debounced) "renderMermaidDebounced" else "renderMermaid"
-                
-                webView.evaluateJavascript("$jsFunction(`$escapedSource`);") { result ->
-                    Log.d("MermaidPreview", "Render initiated: $result")
-                }
-                
-                setLastRenderedContent(source)
-            } else {
-                Log.w("MermaidPreview", "WebView not ready, cannot render diagram")
+            if (!_isReady.value) {
+                Log.w("MermaidPreview", "WebView not ready, queueing content for render")
+                queuedContent = source
+                return
+            }
+
+            // Avoid no-op re-renders that would leave loading state stuck
+            if (source == _lastRenderedContent.value) {
+                setLoading(false)
+                return
+            }
+
+            if (source.isBlank()) {
+                clearPreview()
+                setLoading(false)
+                return
+            }
+
+            // Reset any stuck state in the page before rendering and rebuild the preview container
+            webView.evaluateJavascript("resetPreviewState(); forceRecreatePreview();", null)
+            setLoading(true)
+            setError(null)
+
+            val escapedSource = source.escapeForJs()
+            val jsFunction = if (debounced) "renderMermaidDebounced" else "renderMermaid"
+
+            webView.evaluateJavascript("$jsFunction(`$escapedSource`);") { result ->
+                Log.d("MermaidPreview", "Render initiated: $result")
             }
         }
     }
@@ -85,6 +108,7 @@ class MermaidPreviewState {
         webView?.evaluateJavascript("clearPreview();", null)
         setLastRenderedContent("")
         setError(null)
+        queuedContent = null
     }
     
     /**
@@ -123,6 +147,19 @@ class MermaidPreviewState {
 
     fun setZoom(scale: Float) {
         webView?.evaluateJavascript("setScale(${"%1.2f".format(scale)});", null)
+    }
+    
+    /**
+     * Reload the HTML page to ensure fresh WebView state
+     */
+    fun reloadPreview() {
+        webView?.let { webView ->
+            Log.d("MermaidPreview", "Reloading preview HTML")
+            _isReady.value = false
+            setLoading(false)
+            setError(null)
+            webView.loadUrl("file:///android_asset/mermaid_preview.html")
+        }
     }
 }
 
@@ -187,8 +224,8 @@ fun MermaidPreview(
             }
         )
         
-        // Loading overlay
-        if (isLoading) {
+        // Loading overlay - only show when ready
+        if (isLoading && isReady) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -296,11 +333,11 @@ fun MermaidPreview(
         }
     }
     
-    // Render content when it changes
+    // Render content when it changes (only if WebView is ready)
     LaunchedEffect(content, isReady) {
-        if (isReady && content.isNotBlank()) {
-            state.renderDiagram(content, debounced = true)
-        } else if (isReady && content.isBlank()) {
+        if (content.isNotBlank()) {
+            state.renderDiagram(content, debounced = false)
+        } else if (isReady) {
             state.clearPreview()
         }
     }
