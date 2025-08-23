@@ -24,6 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.mermaidmaker.ui.diagrams.CreateDiagramScreen
 import com.example.mermaidmaker.ui.home.HomeScreen
 import com.example.mermaidmaker.ui.preview.MermaidPreviewTest
+import com.example.mermaidmaker.ui.settings.ApiKeyScreen
 import com.example.mermaidmaker.ui.theme.MermaidMakerTheme
 
 class MainActivity : ComponentActivity() {
@@ -61,6 +62,11 @@ fun MainApp() {
             }
             composable("settings") {
                 SettingsScreen(navController)
+            }
+            composable("api_keys") {
+                ApiKeyScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
             composable("preview_test") {
                 MermaidPreviewTest()
@@ -108,16 +114,70 @@ fun SettingsScreen(navController: NavHostController? = null) {
             .padding(16.dp)
     ) {
         Text(
-            text = "Settings Screen",
+            text = "Settings",
             style = MaterialTheme.typography.headlineSmall
         )
         
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // API Keys Section
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "AI Features",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Configure AI providers to enable diagram generation from text",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = { navController?.navigate("api_keys") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Manage API Keys")
+                }
+            }
+        }
+        
         Spacer(modifier = Modifier.height(16.dp))
         
-        Button(
-            onClick = { navController?.navigate("preview_test") }
+        // Developer Tools Section
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            Text("Test Preview System")
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Developer Tools",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Testing and debugging tools",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { navController?.navigate("preview_test") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Test Preview System")
+                }
+            }
         }
     }
 }
