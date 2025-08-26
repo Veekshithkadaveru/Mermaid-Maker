@@ -2,6 +2,7 @@ package com.example.mermaidmaker
 
 import android.app.Application
 import com.example.mermaidmaker.di.databaseModule
+import com.example.mermaidmaker.di.networkModule
 import com.example.mermaidmaker.di.repositoryModule
 import com.example.mermaidmaker.di.useCaseModule
 import com.example.mermaidmaker.di.viewModelModule
@@ -19,6 +20,7 @@ class MermaidMakerApp : Application() {
         startKoin {
             androidContext(this@MermaidMakerApp)
             modules(
+                networkModule,
                 databaseModule,
                 repositoryModule,
                 useCaseModule,
