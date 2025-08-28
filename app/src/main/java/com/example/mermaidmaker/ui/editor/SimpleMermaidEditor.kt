@@ -71,8 +71,10 @@ private fun setupSimpleWebView(webView: WebView, javascriptInterface: SimpleEdit
             // Additional settings for better compatibility
             loadWithOverviewMode = true
             useWideViewPort = true
-            allowUniversalAccessFromFileURLs = true
-            allowFileAccessFromFileURLs = true
+            @Suppress("DEPRECATION")
+            allowUniversalAccessFromFileURLs = false
+            @Suppress("DEPRECATION")
+            allowFileAccessFromFileURLs = false
             
             // Better text selection and input handling
             textZoom = 100
@@ -89,6 +91,9 @@ private fun setupSimpleWebView(webView: WebView, javascriptInterface: SimpleEdit
         }
         
         webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                return url?.startsWith("file:///android_asset/")?.not() ?: false
+            }
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 Log.d("SimpleMermaidEditor", "Page started loading: $url")

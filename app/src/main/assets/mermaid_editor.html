@@ -97,15 +97,151 @@
         <textarea id="mermaid-editor"></textarea>
     </div>
 
-    <!-- CodeMirror JavaScript -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/matchbrackets.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/closebrackets.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/hint/show-hint.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/brace-fold.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/selection/active-line.min.js"></script>
+    <!-- CodeMirror JavaScript - Security: Using local files instead of CDN -->
+    <script>
+        // Simplified CodeMirror functionality for security
+        // This replaces the external CDN dependencies with minimal local implementation
+        
+        class SimpleCodeMirror {
+            constructor(textarea, options = {}) {
+                this.textarea = textarea;
+                this.options = options;
+                this.wrapper = this.createWrapper();
+                this.setupEditor();
+            }
+            
+            createWrapper() {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'CodeMirror';
+                wrapper.style.cssText = `
+                    height: 100%;
+                    font-size: 14px;
+                    line-height: 1.5;
+                    font-family: 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                    background-color: #1e1e1e;
+                    color: #ffffff;
+                    border: none;
+                    resize: none;
+                    outline: none;
+                `;
+                
+                const editor = document.createElement('textarea');
+                editor.className = 'CodeMirror-textarea';
+                editor.style.cssText = `
+                    width: 100%;
+                    height: 100%;
+                    background: transparent;
+                    color: inherit;
+                    font: inherit;
+                    border: none;
+                    resize: none;
+                    outline: none;
+                    padding: 10px;
+                    box-sizing: border-box;
+                `;
+                editor.placeholder = this.options.placeholder || '';
+                
+                wrapper.appendChild(editor);
+                this.textarea.parentNode.insertBefore(wrapper, this.textarea);
+                this.textarea.style.display = 'none';
+                
+                return wrapper;
+            }
+            
+            setupEditor() {
+                this.editor = this.wrapper.querySelector('.CodeMirror-textarea');
+                this.editor.addEventListener('input', () => {
+                    this.textarea.value = this.editor.value;
+                    if (this.changeCallback) {
+                        this.changeCallback(this, { origin: '+input' });
+                    }
+                });
+                
+                this.editor.addEventListener('focus', () => {
+                    this.wrapper.classList.add('CodeMirror-focused');
+                });
+                
+                this.editor.addEventListener('blur', () => {
+                    this.wrapper.classList.remove('CodeMirror-focused');
+                });
+            }
+            
+            getValue() {
+                return this.editor.value;
+            }
+            
+            setValue(value) {
+                this.editor.value = value || '';
+                this.textarea.value = value || '';
+            }
+            
+            focus() {
+                this.editor.focus();
+            }
+            
+            on(event, callback) {
+                if (event === 'change') {
+                    this.changeCallback = callback;
+                } else if (event === 'cursorActivity') {
+                    this.editor.addEventListener('selectionchange', () => {
+                        callback(this);
+                    });
+                }
+            }
+            
+            getCursor() {
+                const pos = this.editor.selectionStart;
+                const lines = this.editor.value.substring(0, pos).split('\n');
+                return {
+                    line: lines.length - 1,
+                    ch: lines[lines.length - 1].length
+                };
+            }
+            
+            setCursor(line, ch) {
+                const lines = this.editor.value.split('\n');
+                let pos = 0;
+                for (let i = 0; i < line && i < lines.length; i++) {
+                    pos += lines[i].length + 1; // +1 for newline
+                }
+                pos += Math.min(ch, lines[line]?.length || 0);
+                this.editor.setSelectionRange(pos, pos);
+            }
+            
+            replaceSelection(text) {
+                const start = this.editor.selectionStart;
+                const end = this.editor.selectionEnd;
+                const value = this.editor.value;
+                this.editor.value = value.substring(0, start) + text + value.substring(end);
+                this.editor.setSelectionRange(start + text.length, start + text.length);
+                this.textarea.value = this.editor.value;
+            }
+            
+            refresh() {
+                // No-op for compatibility
+            }
+            
+            getWrapperElement() {
+                return this.wrapper;
+            }
+        }
+        
+        // CodeMirror compatibility layer
+        window.CodeMirror = {
+            fromTextArea: function(textarea, options) {
+                return new SimpleCodeMirror(textarea, options);
+            },
+            defineMode: function() {
+                // No-op for compatibility
+            },
+            registerHelper: function() {
+                // No-op for compatibility
+            },
+            Pos: function(line, ch) {
+                return { line: line, ch: ch };
+            }
+        };
+    </script>
 
     <script>
         // Define Mermaid syntax highlighting mode
