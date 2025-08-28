@@ -1,5 +1,7 @@
 package com.example.mermaidmaker.di
 
+import com.example.mermaidmaker.data.network.GeminiApiService
+import com.example.mermaidmaker.data.network.OpenAiApiService
 import com.example.mermaidmaker.data.repository.ApiKeyRepositoryImpl
 import com.example.mermaidmaker.data.repository.DiagramRepositoryImpl
 import com.example.mermaidmaker.data.repository.TemplateRepositoryImpl
@@ -14,5 +16,5 @@ val repositoryModule = module {
     single<DiagramRepository> { DiagramRepositoryImpl(get()) }
     single<TemplateRepository> { TemplateRepositoryImpl(get()) }
     single<ApiKeyRepository> { ApiKeyRepositoryImpl(get()) }
-    single<ApiKeyValidationService> { ApiKeyValidationServiceImpl() }
+    single<ApiKeyValidationService> { ApiKeyValidationServiceImpl(get(), get()) }
 }

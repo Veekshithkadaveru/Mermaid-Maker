@@ -46,15 +46,15 @@ class ApiKeyRepositoryImpl(
 
     override suspend fun storeApiKey(provider: AiProvider, apiKey: String): Result<Unit> {
         return try {
-            // Check if this is the same key as before
+            // Check if this is the same key as before to preserve validation status
             val existingKey = encryptedPrefs.getString(KEY_PREFIX + provider.name, null)
-            val isSameKey = existingKey == apiKey
+            val shouldResetValidation = existingKey != apiKey
             
             encryptedPrefs.edit().apply {
                 putString(KEY_PREFIX + provider.name, apiKey)
                 putLong(TIMESTAMP_PREFIX + provider.name, System.currentTimeMillis())
-                // Only reset validation status if the key actually changed
-                if (!isSameKey) {
+                // Only reset validation status when key actually changes
+                if (shouldResetValidation) {
                     putBoolean(VALIDATION_PREFIX + provider.name, false)
                 }
                 apply()
