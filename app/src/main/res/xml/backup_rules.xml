@@ -1,13 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
--->
+<?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Include most app data -->
+    <include domain="sharedpref" path="."/>
+    <include domain="database" path="."/>
+    <include domain="file" path="."/>
+
+    <!-- Exclude sensitive data -->
+    <exclude domain="sharedpref" path="api_keys_secure_prefs.xml"/>
+    <exclude domain="database" path="mermaid_database"/>
+    <exclude domain="database" path="mermaid_database-shm"/>
+    <exclude domain="database" path="mermaid_database-wal"/>
+    <exclude domain="file" path=".*key.*"/>
+    <exclude domain="file" path=".*token.*"/>
+    <exclude domain="file" path=".*secret.*"/>
 </full-backup-content>

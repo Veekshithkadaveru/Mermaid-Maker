@@ -1,9 +1,12 @@
 package com.example.mermaidmaker.di
 
 
+import com.example.mermaidmaker.BuildConfig
 import com.example.mermaidmaker.data.network.GeminiApiService
 import com.example.mermaidmaker.data.network.OpenAiApiService
 import com.example.mermaidmaker.domain.model.AiProvider
+import okhttp3.HttpUrl
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.dsl.module
@@ -16,10 +19,30 @@ val networkModule = module {
     // HTTP Client
     single {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.HEADERS
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
+            redactHeader("Authorization")
+            redactHeader("X-API-Key")
+            redactHeader("Api-Key")
+        }
+        val redactingInterceptor = Interceptor { chain ->
+            val original = chain.request()
+            val url: HttpUrl = original.url
+            val newUrlBuilder = url.newBuilder()
+            if (url.queryParameterNames.contains("key")) {
+                newUrlBuilder.setQueryParameter("key", "REDACTED")
+            }
+            val newRequest = original.newBuilder()
+                .url(newUrlBuilder.build())
+                .build()
+            chain.proceed(newRequest)
         }
         
         OkHttpClient.Builder()
+            .addInterceptor(redactingInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)

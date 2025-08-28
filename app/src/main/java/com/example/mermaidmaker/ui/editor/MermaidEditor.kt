@@ -77,11 +77,17 @@ private fun setupWebView(webView: WebView, javascriptInterface: MermaidEditorJav
             setSupportZoom(false)
             builtInZoomControls = false
             displayZoomControls = false
+            // Enable Safe Browsing (API 26+)
+            safeBrowsingEnabled = true
         }
         
         addJavascriptInterface(javascriptInterface, "Android")
         
         webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                // Only allow loading from app assets
+                return url?.startsWith("file:///android_asset/")?.not() ?: false
+            }
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 javascriptInterface.onWebViewReady()

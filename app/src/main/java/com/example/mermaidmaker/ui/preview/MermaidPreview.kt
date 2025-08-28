@@ -372,14 +372,47 @@ private fun setupMermaidPreviewWebView(
             displayZoomControls = false
             loadWithOverviewMode = true
             useWideViewPort = true
+            // Security: Disable universal file access
             @Suppress("DEPRECATION")
-            allowUniversalAccessFromFileURLs = true
+            allowUniversalAccessFromFileURLs = false
             @Suppress("DEPRECATION")
-            allowFileAccessFromFileURLs = true
+            allowFileAccessFromFileURLs = false
+            // Enable Safe Browsing
+            safeBrowsingEnabled = true
             // Keep system font size sensible; rely on SVG scaling
             textZoom = 100
             minimumFontSize = 12
             cacheMode = WebSettings.LOAD_NO_CACHE // Always fresh content
+        }
+        
+        // Security: Only allow access to assets
+        webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url?.toString() ?: return false
+                // Only allow file:///android_asset/ URLs
+                return !url.startsWith("file:///android_asset/")
+            }
+            
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                Log.d("MermaidPreview", "Page started loading: $url")
+            }
+            
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                Log.d("MermaidPreview", "Page finished loading: $url")
+            }
+            
+            @Deprecated("Deprecated in Java")
+            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                super.onReceivedError(view, errorCode, description, failingUrl)
+                Log.e("MermaidPreview", "WebView error: $errorCode - $description")
+            }
+            
+            override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
+                super.onReceivedHttpError(view, request, errorResponse)
+                Log.e("MermaidPreview", "HTTP error: ${errorResponse?.statusCode} - ${errorResponse?.reasonPhrase}")
+            }
         }
         
         addJavascriptInterface(javascriptInterface, "Android")
@@ -397,29 +430,6 @@ private fun setupMermaidPreviewWebView(
             }
         }
         
-        webViewClient = object : WebViewClient() {
-            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                super.onPageStarted(view, url, favicon)
-                Log.d("MermaidPreview", "Page started loading: $url")
-            }
-            
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                Log.d("MermaidPreview", "Page finished loading: $url")
-                // JavaScript interface will call onWebViewReady
-            }
-            
-            @Deprecated("Deprecated in Java")
-            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
-                super.onReceivedError(view, errorCode, description, failingUrl)
-                Log.e("MermaidPreview", "WebView error: $errorCode - $description")
-            }
-            
-            override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
-                super.onReceivedHttpError(view, request, errorResponse)
-                Log.e("MermaidPreview", "HTTP error: ${errorResponse?.statusCode} - ${errorResponse?.reasonPhrase}")
-            }
-        }
         
         Log.d("MermaidPreview", "Loading Mermaid preview HTML")
         loadUrl("file:///android_asset/mermaid_preview.html")

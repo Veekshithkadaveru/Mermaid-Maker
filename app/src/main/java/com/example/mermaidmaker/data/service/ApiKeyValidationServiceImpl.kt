@@ -29,8 +29,9 @@ class ApiKeyValidationServiceImpl(
         // Updated pattern to be more flexible for various OpenAI key formats
         // Supports sk-, sk-proj-, sk-live-, and other sk-* prefixes
         private val OPENAI_KEY_PATTERN = Regex("^sk-[a-zA-Z0-9][a-zA-Z0-9-_]{15,}$")
-        // Gemini keys vary; accept 20+ URL-safe characters (alphanumeric, dash, underscore)
-        private val GEMINI_KEY_PATTERN = Regex("^[A-Za-z0-9_-]{20,}$")
+        // Gemini keys vary widely; accept 10+ printable ASCII characters
+        // Since Google doesn't specify a strict pattern, we use a very flexible approach
+        private val GEMINI_KEY_PATTERN = Regex("^[\\x21-\\x7E]{10,}$")
     }
     
     override suspend fun validateApiKey(provider: AiProvider, apiKey: String): Result<Boolean> {
@@ -109,11 +110,22 @@ class ApiKeyValidationServiceImpl(
             val isSuccessful = response.isSuccessful
             
             Log.d(TAG, "Gemini response received - Code: ${response.code()}, Success: $isSuccessful")
+            
             if (isSuccessful) {
-                Log.d(TAG, "Gemini API key validation successful")
-                true
+                // Verify the response contains valid data
+                val body = response.body()
+                Log.d(TAG, "Gemini response body: $body")
+                
+                if (body?.models != null) {
+                    Log.d(TAG, "Gemini API key validation successful - found ${body.models.size} models")
+                    true
+                } else {
+                    Log.d(TAG, "Gemini API key validation successful - response received but no models listed")
+                    true // Key is valid even if no models are returned
+                }
             } else {
-                Log.w(TAG, "Gemini API key validation failed with code: ${response.code()}")
+                val errorBody = response.errorBody()?.string()
+                Log.w(TAG, "Gemini API key validation failed with code: ${response.code()}, error: $errorBody")
                 false
             }
         } catch (e: HttpException) {
@@ -122,6 +134,7 @@ class ApiKeyValidationServiceImpl(
                 400 -> false // Bad request - often invalid key
                 401 -> false // Unauthorized - invalid key
                 403 -> false // Forbidden - invalid key or insufficient permissions
+                404 -> false // Not found - invalid endpoint or key
                 else -> throw e // Other HTTP errors should bubble up
             }
         } catch (e: IOException) {
@@ -130,6 +143,9 @@ class ApiKeyValidationServiceImpl(
         } catch (e: SocketTimeoutException) {
             Log.e(TAG, "Timeout during Gemini validation", e)
             throw Exception("Request timeout. Please check your internet connection.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error during Gemini validation", e)
+            throw Exception("Validation error: ${e.message}")
         }
     }
     
@@ -167,7 +183,7 @@ class ApiKeyValidationServiceImpl(
     fun getApiKeyFormatHint(provider: AiProvider): String {
         return when (provider) {
             AiProvider.OPENAI -> "Should start with 'sk-' followed by letters/numbers/dashes (supports sk-proj-, sk-live-, etc.)"
-            AiProvider.GEMINI -> "Should be 20+ characters: letters, numbers, dashes, or underscores only"
+            AiProvider.GEMINI -> "Should be 10+ printable characters from Google AI Studio"
         }
     }
 }
