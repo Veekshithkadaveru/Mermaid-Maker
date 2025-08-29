@@ -5,18 +5,16 @@ import android.content.SharedPreferences
 import com.example.mermaidmaker.data.template.TemplateLoader
 import com.example.mermaidmaker.data.template.TemplateVersionManager
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class DatabaseSeeder(
     private val context: Context,
-    private val templateLoader: TemplateLoader
+    private val templateLoader: TemplateLoader,
+    private val appScope: CoroutineScope
 ) {
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
-    
-    private val coroutineScope = CoroutineScope(Dispatchers.IO)
     
     companion object {
         private const val PREFS_NAME = "mermaid_maker_db_seeder"
@@ -27,7 +25,7 @@ class DatabaseSeeder(
     }
     
     fun seedDatabaseIfNeeded() {
-        coroutineScope.launch {
+        appScope.launch {
             val currentVersion = prefs.getInt(KEY_DB_VERSION, 0)
             val currentTemplateVersion = prefs.getInt(KEY_TEMPLATE_VERSION, 0)
             val templatesSeeded = prefs.getBoolean(KEY_TEMPLATES_SEEDED, false)
@@ -62,17 +60,17 @@ class DatabaseSeeder(
     
     private suspend fun seedInitialData() {
         seedTemplates()
-        // Future: Add other initial data seeding here
-        // seedSampleDiagrams()
-        // seedUserPreferences()
     }
     
     private suspend fun seedTemplates() {
         try {
             templateLoader.loadBuiltInTemplates()
-        } catch (e: Exception) {
-            // Log error in production
-            // For now, silently fail to prevent app crashes
+        } catch (e: java.io.IOException) {
+            android.util.Log.e("DatabaseSeeder", "IO error loading templates", e)
+        } catch (e: kotlinx.serialization.SerializationException) {
+            android.util.Log.e("DatabaseSeeder", "Template parsing error", e)
+        } catch (e: android.database.sqlite.SQLiteException) {
+            android.util.Log.e("DatabaseSeeder", "Database error inserting templates", e)
         }
     }
     
@@ -94,7 +92,7 @@ class DatabaseSeeder(
         )
         
         if (newTemplates.isNotEmpty()) {
-            // Reload all built-in templates to ensure consistency
+
             templateLoader.reloadBuiltInTemplates()
         }
     }

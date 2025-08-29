@@ -4,12 +4,6 @@
 
     <!-- Internet permission for AI API calls -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Storage permissions for exporting diagrams -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
-    <!-- For accessing and sharing files -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
 
     <application
         android:name=".MermaidMakerApp"
@@ -22,7 +16,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MermaidMaker"
         android:usesCleartextTraffic="false"
-        android:requestLegacyExternalStorage="true"
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"
@@ -35,6 +28,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        
+        <!-- FileProvider for secure file sharing -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_provider_paths" />
+        </provider>
     </application>
 
 </manifest>

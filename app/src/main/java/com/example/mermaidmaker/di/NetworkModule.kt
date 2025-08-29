@@ -15,7 +15,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 val networkModule = module {
-    
+
     // HTTP Client
     single {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
@@ -27,6 +27,7 @@ val networkModule = module {
             redactHeader("Authorization")
             redactHeader("X-API-Key")
             redactHeader("Api-Key")
+            redactHeader("x-goog-api-key")
         }
         val redactingInterceptor = Interceptor { chain ->
             val original = chain.request()
@@ -40,7 +41,7 @@ val networkModule = module {
                 .build()
             chain.proceed(newRequest)
         }
-        
+
         OkHttpClient.Builder()
             .addInterceptor(redactingInterceptor)
             .addInterceptor(loggingInterceptor)
@@ -49,7 +50,7 @@ val networkModule = module {
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }
-    
+
     // OpenAI Retrofit instance
     single<Retrofit>(qualifier = org.koin.core.qualifier.named("openai")) {
         Retrofit.Builder()
@@ -58,7 +59,7 @@ val networkModule = module {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
-    
+
     // Gemini Retrofit instance
     single<Retrofit>(qualifier = org.koin.core.qualifier.named("gemini")) {
         Retrofit.Builder()
@@ -67,12 +68,12 @@ val networkModule = module {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
-    
+
     // API Services
     single<OpenAiApiService> {
         get<Retrofit>(qualifier = org.koin.core.qualifier.named("openai")).create(OpenAiApiService::class.java)
     }
-    
+
     single<GeminiApiService> {
         get<Retrofit>(qualifier = org.koin.core.qualifier.named("gemini")).create(GeminiApiService::class.java)
     }

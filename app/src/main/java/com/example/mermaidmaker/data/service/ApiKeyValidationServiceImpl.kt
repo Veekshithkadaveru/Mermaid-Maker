@@ -5,6 +5,7 @@ import com.example.mermaidmaker.data.network.GeminiApiService
 import com.example.mermaidmaker.data.network.OpenAiApiService
 import com.example.mermaidmaker.domain.model.AiProvider
 import com.example.mermaidmaker.domain.service.ApiKeyValidationService
+import com.example.mermaidmaker.domain.error.ApiError
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -24,13 +25,9 @@ class ApiKeyValidationServiceImpl(
     companion object {
         private const val TAG = "ApiKeyValidation"
         
-        // Basic API key format validation patterns (relaxed to support newer formats)
-        // OpenAI keys now include formats like sk-proj-..., sk-live-..., etc.
-        // Updated pattern to be more flexible for various OpenAI key formats
-        // Supports sk-, sk-proj-, sk-live-, and other sk-* prefixes
+
         private val OPENAI_KEY_PATTERN = Regex("^sk-[a-zA-Z0-9][a-zA-Z0-9-_]{15,}$")
-        // Gemini keys vary widely; accept 10+ printable ASCII characters
-        // Since Google doesn't specify a strict pattern, we use a very flexible approach
+
         private val GEMINI_KEY_PATTERN = Regex("^[\\x21-\\x7E]{10,}$")
     }
     
@@ -50,8 +47,7 @@ class ApiKeyValidationServiceImpl(
                 val hint = getApiKeyFormatHint(provider)
                 return Result.failure(Exception("Invalid API key format for ${provider.displayName}. $hint"))
             }
-            
-            // Perform actual server-side validation
+
             Log.d(TAG, "Format check passed, proceeding with server validation for ${provider.displayName}")
             val isValid = when (provider) {
                 AiProvider.OPENAI -> {
@@ -67,9 +63,21 @@ class ApiKeyValidationServiceImpl(
             Log.d(TAG, "Server validation ${if (isValid) "succeeded" else "failed"} for ${provider.displayName}")
             Result.success(isValid)
             
+        } catch (e: HttpException) {
+            Log.e(TAG, "HTTP error during validation for ${provider.displayName}", e)
+            Result.failure(ApiError.Http(e.code(), cause = e))
+        } catch (e: SocketTimeoutException) {
+            Log.e(TAG, "Timeout during validation for ${provider.displayName}", e)
+            Result.failure(ApiError.Timeout())
+        } catch (e: IOException) {
+            Log.e(TAG, "Network error during validation for ${provider.displayName}", e)
+            Result.failure(ApiError.Network("Network error: ${e.message}", e))
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Invalid argument during validation for ${provider.displayName}", e)
+            Result.failure(ApiError.InvalidKey("Invalid API key format"))
         } catch (e: Exception) {
-            Log.e(TAG, "API key validation error for ${provider.displayName}", e)
-            Result.failure(e)
+            Log.e(TAG, "Unexpected error during validation for ${provider.displayName}", e)
+            Result.failure(ApiError.Unexpected("Validation error: ${e.message}", e))
         }
     }
     
@@ -90,16 +98,15 @@ class ApiKeyValidationServiceImpl(
         } catch (e: HttpException) {
             Log.w(TAG, "OpenAI validation failed with HTTP error: ${e.code()}", e)
             when (e.code()) {
-                401 -> false // Unauthorized - invalid key
-                403 -> false // Forbidden - invalid key or insufficient permissions
-                else -> throw e // Other HTTP errors should bubble up
+                401, 403 -> false
+                else -> throw ApiError.Http(e.code(), cause = e)
             }
         } catch (e: IOException) {
             Log.e(TAG, "Network error during OpenAI validation", e)
-            throw Exception("Network error: ${e.message}")
+            throw ApiError.Network("Network error: ${e.message}", e)
         } catch (e: SocketTimeoutException) {
             Log.e(TAG, "Timeout during OpenAI validation", e)
-            throw Exception("Request timeout. Please check your internet connection.")
+            throw ApiError.Timeout()
         }
     }
     
@@ -121,7 +128,7 @@ class ApiKeyValidationServiceImpl(
                     true
                 } else {
                     Log.d(TAG, "Gemini API key validation successful - response received but no models listed")
-                    true // Key is valid even if no models are returned
+                    true
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
@@ -131,21 +138,18 @@ class ApiKeyValidationServiceImpl(
         } catch (e: HttpException) {
             Log.w(TAG, "Gemini validation failed with HTTP error: ${e.code()}", e)
             when (e.code()) {
-                400 -> false // Bad request - often invalid key
-                401 -> false // Unauthorized - invalid key
-                403 -> false // Forbidden - invalid key or insufficient permissions
-                404 -> false // Not found - invalid endpoint or key
-                else -> throw e // Other HTTP errors should bubble up
+                400, 401, 403, 404 -> false // invalid key or not found
+                else -> throw ApiError.Http(e.code(), cause = e)
             }
         } catch (e: IOException) {
             Log.e(TAG, "Network error during Gemini validation", e)
-            throw Exception("Network error: ${e.message}")
+            throw ApiError.Network("Network error: ${e.message}", e)
         } catch (e: SocketTimeoutException) {
             Log.e(TAG, "Timeout during Gemini validation", e)
-            throw Exception("Request timeout. Please check your internet connection.")
+            throw ApiError.Timeout()
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected error during Gemini validation", e)
-            throw Exception("Validation error: ${e.message}")
+            throw ApiError.Unexpected("Validation error: ${e.message}", e)
         }
     }
     
@@ -154,8 +158,7 @@ class ApiKeyValidationServiceImpl(
             Log.d(TAG, "Testing connection for ${provider.displayName}")
             
             val sanitizedKey = apiKey.trim()
-            
-            // Test the actual connection
+
             val isValid = when (provider) {
                 AiProvider.OPENAI -> validateOpenAiKey(sanitizedKey)
                 AiProvider.GEMINI -> validateGeminiKey(sanitizedKey)
@@ -168,12 +171,23 @@ class ApiKeyValidationServiceImpl(
             } else {
                 val errorMessage = "Connection test failed - API key is invalid for ${provider.displayName}"
                 Log.w(TAG, errorMessage)
-                Result.failure(Exception(errorMessage))
+                Result.failure(ApiError.InvalidKey(errorMessage))
             }
-            
+        } catch (e: HttpException) {
+            Log.e(TAG, "HTTP error during connection test for ${provider.displayName}", e)
+            Result.failure(ApiError.Http(e.code(), cause = e))
+        } catch (e: SocketTimeoutException) {
+            Log.e(TAG, "Timeout during connection test for ${provider.displayName}", e)
+            Result.failure(ApiError.Timeout())
+        } catch (e: IOException) {
+            Log.e(TAG, "Network error during connection test for ${provider.displayName}", e)
+            Result.failure(ApiError.Network("Network error: ${e.message}", e))
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Invalid argument during connection test for ${provider.displayName}", e)
+            Result.failure(ApiError.InvalidKey("Invalid API key format"))
         } catch (e: Exception) {
-            Log.e(TAG, "Connection test failed for ${provider.displayName}", e)
-            Result.failure(e)
+            Log.e(TAG, "Unexpected error during connection test for ${provider.displayName}", e)
+            Result.failure(ApiError.Unexpected("Validation error: ${e.message}", e))
         }
     }
     
