@@ -22,6 +22,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.mermaidmaker.ui.diagrams.CreateDiagramScreen
+import com.example.mermaidmaker.ui.editor.MainEditorScreen
 import com.example.mermaidmaker.ui.home.HomeScreen
 import com.example.mermaidmaker.ui.preview.MermaidPreviewTest
 import com.example.mermaidmaker.ui.settings.ApiKeyScreen
@@ -51,9 +52,12 @@ fun MainApp() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "home",
+            startDestination = "editor",
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable("editor") {
+                MainEditorScreen()
+            }
             composable("home") {
                 HomeScreen(navController = navController)
             }
@@ -78,8 +82,8 @@ fun MainApp() {
 @Composable
 fun BottomNavigation(navController: NavHostController) {
     val items = listOf(
+        BottomNavItem("editor", "Editor", Icons.Filled.Add),
         BottomNavItem("home", "Home", Icons.Filled.Home),
-        BottomNavItem("create", "Create", Icons.Filled.Add),
         BottomNavItem("settings", "Settings", Icons.Filled.Settings)
     )
     
