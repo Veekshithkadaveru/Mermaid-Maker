@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=0.5, maximum-scale=5.0">
+    <title>Mermaid Preview</title>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto', sans-serif;
+            background-color: transparent;
+            overflow-x: auto;
+            overflow-y: auto;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        .container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .status, .error, .loading {
+            display: none !important;
+        }
+        
+        .preview-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            background-color: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+            overflow: auto;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+        }
+        
+        #preview {
+            width: 100%;
+            min-height: 100%;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            text-align: left;
+            margin: 0;
+            padding: 0;
+        }
+        
+        #preview svg {
+            width: 100% !important;
+            height: auto !important;
+            max-width: 100% !important;
+            display: block;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Scaled content wrapper */
+        #preview-scale {
+            transform-origin: top left;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        
+        .placeholder {
+            color: #9e9e9e;
+            font-style: italic;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="status" class="status">Preview ready</div>
+        <div id="error" class="error"></div>
+        <div id="loading" class="loading">Rendering diagram...</div>
+        
+        <div class="preview-container">
+            <div id="preview">
+                <div class="placeholder">Diagram preview will appear here</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Mermaid.js -->
+    <script src="mermaid.min.js"></script>
+    
+    <script>
+        console.log('Mermaid Preview HTML loaded');
+        
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#2196f3',
+                primaryTextColor: '#ffffff',
+                primaryBorderColor: '#1976d2',
+                lineColor: '#666666',
+                sectionBkgColor: '#f5f5f5',
+                altSectionBkgColor: '#ffffff',
+                gridColor: '#e0e0e0',
+                secondaryColor: '#ff9800',
+                tertiaryColor: '#4caf50'
+            },
+            securityLevel: 'strict',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: false
+            },
+            sequence: {
+                useMaxWidth: true,
+                diagramMarginX: 50,
+                diagramMarginY: 10,
+                actorMargin: 50,
+                width: 150,
+                height: 65,
+                boxMargin: 10,
+                boxTextMargin: 5,
+                noteMargin: 10,
+                messageMargin: 35
+            }
+        });
+        
+        console.log('Mermaid initialized with version:', mermaid.version);
+        
+        // State management
+        let isRendering = false;
+        let lastRenderedContent = '';
+        let renderTimeout = null;
+        let lastContentHash = '';
+        let renderWatchdog = null;
+        let lastSource = '';
+        
+        // DOM elements
+        const statusElement = document.getElementById('status');
+        const errorElement = document.getElementById('error');
+        const loadingElement = document.getElementById('loading');
+        const previewElement = document.getElementById('preview');
+        
+        // Utility functions - but don't show any messages
+        function showStatus(message) {
+            // Don't show status messages in fullscreen mode
+        }
+        
+        function showError(message) {
+            // Don't show error messages in fullscreen mode
+            if (window.Android && window.Android.onRenderError) {
+                window.Android.onRenderError(message);
+            }
+        }
+        
+        function showLoading(message = 'Rendering diagram...') {
+            // Don't show loading messages in fullscreen mode
+        }
+        
+        function hideAllMessages() {
+            // All messages are already hidden via CSS
+        }
+
+        // Reset preview state (watchdog)
+        function resetPreviewState() {
+            try { if (renderTimeout) { clearTimeout(renderTimeout); renderTimeout = null; } } catch (e) {}
+            isRendering = false;
+            hideAllMessages();
+        }
+        
+        // Hash utility (simple)
+        function hashString(str) {
+            let h = 0;
+            for (let i = 0; i < str.length; i++) {
+                h = ((h << 5) - h) + str.charCodeAt(i);
+                h |= 0;
+            }
+            return h.toString();
+        }
+
+        // Scale persistence
+        function saveScaleForContent() {
+            if (!lastContentHash) return;
+            try { localStorage.setItem('mm_scale_' + lastContentHash, getScale().toString()); } catch (e) {}
+        }
+        function restoreScaleForContent() {
+            if (!lastContentHash) return false;
+            try {
+                const val = localStorage.getItem('mm_scale_' + lastContentHash);
+                if (val) { setScale(parseFloat(val)); return true; }
+            } catch (e) {}
+            return false;
+        }
+
+        // Recreate preview container DOM (force fresh shell)
+        function forceRecreatePreview() {
+            previewElement.innerHTML = '<div id="preview-scale"><div class="placeholder">Diagram preview will appear here</div></div>';
+        }
+
+        // Main render function
+        async function renderMermaid(source) {
+            // Skip if already rendering the same content
+            if (isRendering) return;
+            
+            // Clear any pending render
+            if (renderTimeout) {
+                clearTimeout(renderTimeout);
+            }
+            
+            // Handle empty content
+            if (!source || source.trim() === '') {
+                previewElement.innerHTML = '<div class="placeholder">Enter Mermaid syntax to see preview</div>';
+                hideAllMessages();
+                lastRenderedContent = source;
+                return;
+            }
+            
+            isRendering = true;
+            lastSource = source;
+            // Clear any prior watchdog
+            if (renderWatchdog) { clearTimeout(renderWatchdog); renderWatchdog = null; }
+            // Start watchdog (auto-retry if stuck)
+            renderWatchdog = setTimeout(() => {
+                if (isRendering) {
+                    console.warn('Render watchdog triggered, resetting and retrying...');
+                    try { mermaid.reset(); } catch (e) { /* ignore */ }
+                    isRendering = false;
+                    hideAllMessages();
+                    forceRecreatePreview();
+                    setTimeout(() => { renderMermaid(lastSource); }, 50);
+                }
+            }, 2000);
+            
+            try {
+                console.log('Rendering Mermaid diagram:', source.substring(0, 100) + '...');
+                
+                // Generate unique ID for this render (stable by hash to avoid mermaid caching glitches)
+                const diagramId = 'diagram_' + hashString(source);
+                lastContentHash = hashString(source);
+                
+                // Use Mermaid's render method
+                // Ensure a clean renderer
+                try { mermaid.reset(); } catch (e) { /* ignore */ }
+                const { svg, bindFunctions } = await mermaid.render(diagramId, source);
+                
+                // Build scaled wrapper and normalize SVG sizing
+                previewElement.innerHTML = '';
+                const scaleWrapper = document.createElement('div');
+                scaleWrapper.id = 'preview-scale';
+                const currentScale = window.__previewScale || 1.0;
+                scaleWrapper.style.transform = `scale(${currentScale})`;
+                
+                // Inject SVG string into wrapper
+                scaleWrapper.innerHTML = svg;
+                const svgEl = scaleWrapper.querySelector('svg');
+                if (svgEl) {
+                    svgEl.removeAttribute('width');
+                    svgEl.removeAttribute('height');
+                    svgEl.style.width = '100%';
+                    svgEl.style.height = 'auto';
+                    svgEl.style.display = 'block';
+                    svgEl.style.margin = '0';
+                    svgEl.style.padding = '0';
+                    svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+                }
+                previewElement.appendChild(scaleWrapper);
+                
+                // Bind any interactive functions if needed
+                if (bindFunctions) {
+                    bindFunctions(previewElement);
+                }
+                
+                lastRenderedContent = source;
+                
+                // Notify Android about successful render - but don't show status
+                if (window.Android && window.Android.onRenderSuccess) {
+                    window.Android.onRenderSuccess(svg.length);
+                }
+                
+                console.log('Mermaid render complete');
+                
+            } catch (error) {
+                console.error('Mermaid render error:', error);
+                
+                // Show placeholder with error - but minimal
+                previewElement.innerHTML = `
+                    <div class="placeholder" style="color: #f44336;">
+                        <strong>Render Error</strong><br>
+                        ${error.message || 'Failed to render diagram'}
+                    </div>
+                `;
+                
+            } finally {
+                isRendering = false;
+                // Stop watchdog
+                if (renderWatchdog) { clearTimeout(renderWatchdog); renderWatchdog = null; }
+            }
+        }
+        
+        // Debounced render function
+        function renderMermaidDebounced(source, delay = 150) {
+            if (renderTimeout) {
+                clearTimeout(renderTimeout);
+            }
+            
+            renderTimeout = setTimeout(() => {
+                // Safety guard: if still rendering, clear and force a fresh pass
+                if (isRendering) {
+                    isRendering = false;
+                }
+                renderMermaid(source);
+            }, delay);
+        }
+        
+        // Theme switching
+        function setTheme(theme) {
+            try {
+                mermaid.initialize({
+                    theme: theme,
+                    startOnLoad: false
+                });
+                
+                // Re-render current content with new theme
+                if (lastRenderedContent) {
+                    renderMermaid(lastRenderedContent);
+                }
+                
+                console.log('Theme updated to:', theme);
+            } catch (error) {
+                console.error('Theme update error:', error);
+            }
+        }
+        
+        // Utility functions for getting rendered content
+        function getRenderedSVG() {
+            const svgElement = previewElement.querySelector('svg');
+            return svgElement ? svgElement.outerHTML : null;
+        }
+        
+        function getPreviewDimensions() {
+            const svgElement = previewElement.querySelector('svg');
+            if (svgElement) {
+                return {
+                    width: svgElement.getAttribute('width') || svgElement.viewBox?.baseVal?.width || 0,
+                    height: svgElement.getAttribute('height') || svgElement.viewBox?.baseVal?.height || 0
+                };
+            }
+            return { width: 0, height: 0 };
+        }
+        
+        // Clear preview
+        function clearPreview() {
+            previewElement.innerHTML = '<div class="placeholder">Diagram preview will appear here</div>';
+            hideAllMessages();
+            lastRenderedContent = '';
+            console.log('Preview cleared');
+        }
+        
+        // Zoom controls
+        window.__previewScale = 1.0;
+        function setScale(scale) {
+            const wrapper = document.getElementById('preview-scale');
+            window.__previewScale = Math.max(0.25, Math.min(scale, 5.0));
+            if (wrapper) {
+                wrapper.style.transform = `scale(${window.__previewScale})`;
+            }
+            // Persist scale for current content
+            saveScaleForContent();
+            return window.__previewScale;
+        }
+        function getScale() { return window.__previewScale || 1.0; }
+        function zoomIn(step = 0.25) { return setScale(getScale() + step); }
+        function zoomOut(step = 0.25) { return setScale(getScale() - step); }
+
+        // Export functions to global scope for Android WebView access
+        window.renderMermaid = renderMermaid;
+        window.renderMermaidDebounced = renderMermaidDebounced;
+        window.setTheme = setTheme;
+        window.getRenderedSVG = getRenderedSVG;
+        window.getPreviewDimensions = getPreviewDimensions;
+        window.clearPreview = clearPreview;
+        window.setScale = setScale;
+        window.getScale = getScale;
+        window.zoomIn = zoomIn;
+        window.zoomOut = zoomOut;
+        window.restoreScaleForContent = restoreScaleForContent;
+        window.saveScaleForContent = saveScaleForContent;
+        window.resetPreviewState = resetPreviewState;
+        
+        // Notify Android that WebView is ready
+        console.log('Mermaid Preview ready, notifying Android');
+        if (window.Android && window.Android.onWebViewReady) {
+            window.Android.onWebViewReady();
+        }
+    </script>
+</body>
+</html>
