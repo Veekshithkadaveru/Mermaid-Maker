@@ -1,5 +1,8 @@
 package com.example.mermaidmaker.ui.editor
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mermaidmaker.domain.model.DiagramType
@@ -31,6 +34,9 @@ class MermaidEditorViewModel(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _fontSize = MutableStateFlow(14)
+    val fontSize: StateFlow<Int> = _fontSize.asStateFlow()
 
     init {
         loadTemplates()
@@ -198,6 +204,59 @@ class MermaidEditorViewModel(
                 "merge feature"
             )
         }
+    }
+
+    /**
+     * Clear the editor content
+     */
+    fun clearContent() {
+        _editorContent.value = ""
+    }
+
+    /**
+     * Copy content to clipboard
+     */
+    fun copyToClipboard(context: Context) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Mermaid Diagram", _editorContent.value)
+        clipboard.setPrimaryClip(clip)
+    }
+
+    /**
+     * Paste content from clipboard
+     */
+    fun pasteFromClipboard(context: Context) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = clipboard.primaryClip
+        if (clip != null && clip.itemCount > 0) {
+            val text = clip.getItemAt(0).text?.toString() ?: ""
+            _editorContent.value = text
+        }
+    }
+
+    /**
+     * Increase font size
+     */
+    fun increaseFontSize() {
+        if (_fontSize.value < 24) {
+            _fontSize.value += 2
+        }
+    }
+
+    /**
+     * Decrease font size
+     */
+    fun decreaseFontSize() {
+        if (_fontSize.value > 10) {
+            _fontSize.value -= 2
+        }
+    }
+
+    /**
+     * Set specific font size
+     */
+    fun setFontSize(size: Int) {
+        _fontSize.value = size
     }
 
     /**
