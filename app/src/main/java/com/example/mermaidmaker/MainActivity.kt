@@ -58,6 +58,10 @@ fun MainApp() {
             composable("editor") {
                 MainEditorScreen()
             }
+            composable("editor/{diagramId}") { backStackEntry ->
+                val diagramId = backStackEntry.arguments?.getString("diagramId")
+                MainEditorScreen(diagramId = diagramId)
+            }
             composable("home") {
                 HomeScreen(navController = navController)
             }

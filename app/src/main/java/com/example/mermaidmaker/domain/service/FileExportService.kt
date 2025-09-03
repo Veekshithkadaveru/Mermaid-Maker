@@ -34,9 +34,10 @@ interface FileExportService {
      * Share SVG content using system share intent
      * @param svgContent The SVG content to share
      * @param fileName The filename for sharing
+     * @return true if share was initiated successfully, false otherwise
      */
     suspend fun shareSvg(
         svgContent: String,
         fileName: String
-    )
+    ): Boolean
 }

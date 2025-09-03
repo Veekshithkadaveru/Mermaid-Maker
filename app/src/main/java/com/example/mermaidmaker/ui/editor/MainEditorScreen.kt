@@ -30,6 +30,7 @@ import org.koin.androidx.compose.koinViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainEditorScreen(
+    diagramId: String? = null,
     viewModel: MermaidEditorViewModel = koinViewModel()
 ) {
     var selectedTabIndex by remember { mutableStateOf(1) } // Start with "Code" tab
@@ -39,6 +40,8 @@ fun MainEditorScreen(
     val selectedDiagramType by viewModel.selectedDiagramType.collectAsState()
     val availableTemplates by viewModel.availableTemplates.collectAsState()
     val fontSize by viewModel.fontSize.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
     
     val context = LocalContext.current
     
@@ -46,19 +49,44 @@ fun MainEditorScreen(
     val editorState = rememberMermaidEditorState(
         initialContent = editorContent
     )
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val tabs = listOf("Text", "Code", "example", "Preview")
 
-    // Initialize with basic template when first loaded
-    LaunchedEffect(Unit) {
-        if (editorContent.isEmpty()) {
+    // Initialize with basic template when first loaded or load existing diagram
+    LaunchedEffect(diagramId) {
+        if (diagramId != null) {
+            // Load existing diagram
+            viewModel.loadDiagram(diagramId)
+        } else if (editorContent.isEmpty()) {
+            // Create new diagram with basic template
             val initialTemplate = viewModel.generateBasicTemplate()
             viewModel.updateContent(initialTemplate)
             editorState.setContent(initialTemplate)
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    // Update editor state when content changes from ViewModel
+    LaunchedEffect(editorContent) {
+        if (editorContent.isNotEmpty()) {
+            editorState.setContent(editorContent)
+        }
+    }
+
+    // Show error messages as snackbars
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { error ->
+            snackbarHostState.showSnackbar(
+                message = error,
+                actionLabel = "Dismiss"
+            )
+            // Clear the error after showing
+            viewModel.clearError()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
         // Compact Top App Bar
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -180,6 +208,44 @@ fun MainEditorScreen(
                 showFontSizeDialog = false
             },
             onDismiss = { showFontSizeDialog = false }
+        )
+    }
+
+        // Loading overlay
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Text(
+                            text = "Loading diagram...",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+        }
+
+        // Snackbar host at bottom
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }

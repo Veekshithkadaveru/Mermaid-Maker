@@ -47,7 +47,8 @@ fun HomeScreen(
     ) { paddingValues ->
         HomeContent(
             diagrams = diagrams,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.padding(paddingValues),
+            onDiagramClick = { diagramId -> navController.navigate("editor/$diagramId") }
         )
     }
 }
@@ -55,7 +56,8 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     diagrams: List<MermaidDiagram>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onDiagramClick: (String) -> Unit = {}
 ) {
     if (diagrams.isEmpty()) {
         Column(
@@ -81,15 +83,21 @@ private fun HomeContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(diagrams, key = { it.id }) { diagram ->
-            DiagramRow(diagram = diagram)
+            DiagramRow(
+                diagram = diagram,
+                onDiagramClick = { onDiagramClick(diagram.id) }
+            )
         }
     }
 }
 
 @Composable
-private fun DiagramRow(diagram: MermaidDiagram) {
+private fun DiagramRow(
+    diagram: MermaidDiagram,
+    onDiagramClick: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { /* TODO: navigate to detail/editor */ }
+        modifier = Modifier.fillMaxWidth().clickable { onDiagramClick() }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
