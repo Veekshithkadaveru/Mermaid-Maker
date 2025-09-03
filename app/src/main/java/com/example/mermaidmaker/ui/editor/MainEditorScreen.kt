@@ -3,6 +3,7 @@ package com.example.mermaidmaker.ui.editor
 import android.annotation.SuppressLint
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -33,9 +34,13 @@ fun MainEditorScreen(
 ) {
     var selectedTabIndex by remember { mutableStateOf(1) } // Start with "Code" tab
     var showExampleDialog by remember { mutableStateOf(false) }
+    var showFontSizeDialog by remember { mutableStateOf(false) }
     val editorContent by viewModel.editorContent.collectAsState()
     val selectedDiagramType by viewModel.selectedDiagramType.collectAsState()
     val availableTemplates by viewModel.availableTemplates.collectAsState()
+    val fontSize by viewModel.fontSize.collectAsState()
+    
+    val context = LocalContext.current
     
     val previewState = rememberMermaidPreviewState()
     val editorState = rememberMermaidEditorState(
@@ -108,6 +113,7 @@ fun MainEditorScreen(
                 0 -> TextTab()
                 1 -> CodeTab(
                     content = editorContent,
+                    fontSize = fontSize,
                     onContentChanged = { content ->
                         viewModel.updateContent(content)
                         editorState.setContent(content)
@@ -117,6 +123,7 @@ fun MainEditorScreen(
                     // Show code content when example tab is "selected" but dialog handles the actual selection
                     CodeTab(
                         content = editorContent,
+                        fontSize = fontSize,
                         onContentChanged = { content ->
                             viewModel.updateContent(content)
                             editorState.setContent(content)
@@ -133,7 +140,12 @@ fun MainEditorScreen(
 
         // Bottom controls section - only show for Code tab
         if (selectedTabIndex == 1) { // Code tab
-            BottomControlsSection()
+            BottomControlsSection(
+                viewModel = viewModel,
+                context = context,
+                editorState = editorState,
+                onFontSizeClick = { showFontSizeDialog = true }
+            )
         }
     }
 
@@ -156,6 +168,18 @@ fun MainEditorScreen(
                 showExampleDialog = false
             },
             onDismiss = { showExampleDialog = false }
+        )
+    }
+    
+    // Font Size Dialog
+    if (showFontSizeDialog) {
+        FontSizeSelectionDialog(
+            currentFontSize = fontSize,
+            onFontSizeSelected = { newSize ->
+                viewModel.setFontSize(newSize)
+                showFontSizeDialog = false
+            },
+            onDismiss = { showFontSizeDialog = false }
         )
     }
 }
@@ -189,10 +213,12 @@ private fun TextTab() {
 @Composable
 private fun CodeTab(
     content: String,
+    fontSize: Int,
     onContentChanged: (String) -> Unit
 ) {
     SyntaxHighlightedEditor(
         content = content,
+        fontSize = fontSize,
         onContentChanged = onContentChanged,
         modifier = Modifier.fillMaxSize()
     )
@@ -340,7 +366,7 @@ private fun TemplateCard(
 @Composable
 private fun PreviewTab(
     content: String,
-    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
+    @Suppress("UNUSED_PARAMETER") previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
     onReturnToCode: () -> Unit = {}
 ) {
     var zoomLevel by remember { mutableStateOf(100) }
@@ -438,7 +464,12 @@ private fun PreviewTab(
 }
 
 @Composable
-private fun BottomControlsSection() {
+private fun BottomControlsSection(
+    viewModel: MermaidEditorViewModel,
+    context: android.content.Context,
+    editorState: MermaidEditorState,
+    onFontSizeClick: () -> Unit
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -451,37 +482,41 @@ private fun BottomControlsSection() {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = { /* Clear functionality */ }) {
+            TextButton(onClick = { 
+                viewModel.clearContent()
+                editorState.clear()
+            }) {
                 Text("clear")
             }
             
             Text("|", color = MaterialTheme.colorScheme.onSurfaceVariant)
             
-            TextButton(onClick = { /* Copy functionality */ }) {
+            TextButton(onClick = { 
+                viewModel.copyToClipboard(context)
+            }) {
                 Text("copy")
             }
             
             Text("|", color = MaterialTheme.colorScheme.onSurfaceVariant)
             
-            TextButton(onClick = { /* Paste functionality */ }) {
+            TextButton(onClick = { 
+                viewModel.pasteFromClipboard(context)
+                editorState.setContent(viewModel.editorContent.value)
+            }) {
                 Text("paste")
             }
             
             Spacer(modifier = Modifier.weight(1f))
             
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+            TextButton(
+                onClick = onFontSizeClick,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             ) {
                 Text(
-                    "A",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    "14",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "font",
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
@@ -502,10 +537,10 @@ private fun FullScreenMermaidPreview(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            WebView(context).apply {
-                webView = this
-                setupFullScreenWebView(this) { isReady = true }
-            }
+            val newWebView = WebView(context)
+            webView = newWebView
+            setupFullScreenWebView(newWebView) { isReady = true }
+            newWebView
         },
         update = { webView ->
             if (isReady) {
@@ -560,12 +595,12 @@ private fun setupFullScreenWebView(webView: WebView, onReady: () -> Unit) {
             }
             
             @android.webkit.JavascriptInterface
-            fun onRenderSuccess(svgLength: Int) {
+            fun onRenderSuccess(@Suppress("UNUSED_PARAMETER") svgLength: Int) {
                 // Success handled silently
             }
             
             @android.webkit.JavascriptInterface
-            fun onRenderError(error: String) {
+            fun onRenderError(@Suppress("UNUSED_PARAMETER") error: String) {
                 // Errors handled silently
             }
         }
@@ -573,6 +608,7 @@ private fun setupFullScreenWebView(webView: WebView, onReady: () -> Unit) {
         addJavascriptInterface(jsInterface, "Android")
         
         webViewClient = object : WebViewClient() {
+            @Deprecated("Deprecated in API level 24")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 return url?.startsWith("file:///android_asset/")?.not() ?: false
             }
@@ -751,5 +787,130 @@ private fun getDiagramTypeDescription(diagramType: DiagramType): String {
         DiagramType.JOURNEY -> "User experience flows"
         DiagramType.GANTT -> "Project timelines"
         DiagramType.PIE -> "Data proportions"
+    }
+}
+
+@Composable
+private fun FontSizeSelectionDialog(
+    currentFontSize: Int,
+    onFontSizeSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier
+                .width(320.dp)
+                .padding(4.dp),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Set font size",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(16.dp)
+                    ) {
+                        Text(
+                            "×",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Font size options
+                val fontSizes = listOf(12, 14, 16, 18, 21, 24, 27, 30, 36)
+                
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 468.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(fontSizes) { fontSize ->
+                        FontSizeOption(
+                            fontSize = fontSize,
+                            isSelected = fontSize == currentFontSize,
+                            onClick = { onFontSizeSelected(fontSize) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FontSizeOption(
+    fontSize: Int,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        onClick = onClick,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+        ),
+        border = if (isSelected) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(
+                selected = isSelected,
+                onClick = onClick,
+                modifier = Modifier.size(20.dp),
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = MaterialTheme.colorScheme.primary,
+                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Text(
+                text = "font size $fontSize",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
+        }
     }
 }

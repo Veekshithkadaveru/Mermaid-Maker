@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun SyntaxHighlightedEditor(
     content: String = "",
+    fontSize: Int = 14,
     onContentChanged: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -76,8 +77,8 @@ fun SyntaxHighlightedEditor(
                         text = applySyntaxHighlighting(textFieldValue.text),
                         style = TextStyle(
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp
+                            fontSize = fontSize.sp,
+                            lineHeight = (fontSize + 6).sp
                         ),
                         modifier = Modifier.fillMaxSize()
                     )
@@ -92,8 +93,8 @@ fun SyntaxHighlightedEditor(
                     },
                     textStyle = TextStyle(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
+                        fontSize = fontSize.sp,
+                        lineHeight = (fontSize + 6).sp,
                         color = Color.Transparent // Make text transparent so highlighting shows
                     ),
                     modifier = Modifier.fillMaxSize(),
@@ -113,8 +114,8 @@ sequenceDiagram
     Bob-->>Alice: Hello Alice!""",
                                     style = TextStyle(
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 14.sp,
-                                        lineHeight = 20.sp,
+                                        fontSize = fontSize.sp,
+                                        lineHeight = (fontSize + 6).sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                     )
                                 )
@@ -264,6 +265,7 @@ private fun applySyntaxHighlighting(text: String): AnnotatedString {
 @Composable
 fun SimpleHighlightedEditor(
     content: String = "",
+    fontSize: Int = 14,
     onContentChanged: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
