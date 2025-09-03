@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -15,6 +16,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import com.example.mermaidmaker.domain.model.DiagramType
+import kotlinx.coroutines.launch
 import com.example.mermaidmaker.ui.editor.MermaidEditorViewModel
 import com.example.mermaidmaker.ui.editor.rememberMermaidEditorState
 import com.example.mermaidmaker.ui.preview.MermaidPreview
@@ -35,6 +37,8 @@ fun CreateDiagramScreen(
         initialContent = ""
     )
     val previewState = rememberMermaidPreviewState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     
     val selectedDiagramType by editorViewModel.selectedDiagramType.collectAsState()
     val availableTemplates by editorViewModel.availableTemplates.collectAsState()
@@ -47,7 +51,9 @@ fun CreateDiagramScreen(
         editorViewModel.updateContent(initialTemplate)
     }
 
-    Scaffold { innerPadding ->
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -212,10 +218,26 @@ fun CreateDiagramScreen(
                             title = title,
                             content = content,
                             type = selectedDiagramType,
-                            onSaved = { 
-                                navController.popBackStack()
+                            onSaved = { savedDiagram ->
+                                // Show success message
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        message = "Diagram '${savedDiagram.title}' created successfully!",
+                                        actionLabel = "View"
+                                    )
+                                    kotlinx.coroutines.delay(1000) // Brief delay to show message
+                                    navController.popBackStack()
+                                }
                             },
-                            onError = { /* TODO: show snackbar */ }
+                            onError = { error ->
+                                // Show error snackbar
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        message = "Failed to create diagram: ${error.message}",
+                                        actionLabel = "Dismiss"
+                                    )
+                                }
+                            }
                         )
                     }
                 }

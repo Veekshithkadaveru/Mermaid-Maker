@@ -85,8 +85,8 @@ class FileExportServiceImpl(
         }
     }
 
-    override suspend fun shareSvg(svgContent: String, fileName: String) {
-        try {
+    override suspend fun shareSvg(svgContent: String, fileName: String): Boolean {
+        return try {
             // Create temporary file in cache directory for sharing
             val cacheDir = File(context.cacheDir, "shared_exports")
             if (!cacheDir.exists()) {
@@ -113,17 +113,25 @@ class FileExportServiceImpl(
             val chooserIntent = Intent.createChooser(shareIntent, "Share diagram")
             chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(chooserIntent)
+            
+            Log.d(TAG, "SVG share initiated successfully")
+            true
 
         } catch (e: SecurityException) {
             Log.e(TAG, "Permission denied while sharing SVG", e)
+            false
         } catch (e: IllegalArgumentException) {
             Log.e(TAG, "Invalid arguments while sharing SVG", e)
+            false
         } catch (e: android.content.ActivityNotFoundException) {
             Log.e(TAG, "No activity found to handle SVG share", e)
+            false
         } catch (e: IOException) {
             Log.e(TAG, "IO error while preparing SVG share", e)
+            false
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected error while sharing SVG", e)
+            false
         }
     }
 

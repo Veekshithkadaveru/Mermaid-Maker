@@ -9,6 +9,7 @@ import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.domain.model.Template
 import com.example.mermaidmaker.domain.usecase.GetBuiltInTemplatesUseCase
 import com.example.mermaidmaker.domain.usecase.GetTemplatesByTypeUseCase
+import com.example.mermaidmaker.domain.repository.DiagramRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -17,7 +18,8 @@ import kotlinx.coroutines.launch
  */
 class MermaidEditorViewModel(
     private val getBuiltInTemplatesUseCase: GetBuiltInTemplatesUseCase,
-    private val getTemplatesByTypeUseCase: GetTemplatesByTypeUseCase
+    private val getTemplatesByTypeUseCase: GetTemplatesByTypeUseCase,
+    private val diagramRepository: DiagramRepository
 ) : ViewModel() {
 
     private val _editorContent = MutableStateFlow("")
@@ -38,8 +40,43 @@ class MermaidEditorViewModel(
     private val _fontSize = MutableStateFlow(14)
     val fontSize: StateFlow<Int> = _fontSize.asStateFlow()
 
+    private val _currentDiagramId = MutableStateFlow<String?>(null)
+    val currentDiagramId: StateFlow<String?> = _currentDiagramId.asStateFlow()
+
+    private val _diagramTitle = MutableStateFlow("")
+    val diagramTitle: StateFlow<String> = _diagramTitle.asStateFlow()
+
     init {
         loadTemplates()
+    }
+
+    /**
+     * Load an existing diagram by ID
+     */
+    fun loadDiagram(diagramId: String) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                
+                val diagram = diagramRepository.getDiagramById(diagramId)
+                if (diagram != null) {
+                    _currentDiagramId.value = diagramId
+                    _diagramTitle.value = diagram.title
+                    _editorContent.value = diagram.content
+                    _selectedDiagramType.value = diagram.diagramType
+                    // Load templates for this diagram type
+                    val templates = getTemplatesByTypeUseCase(diagram.diagramType).first()
+                    _availableTemplates.value = templates.filter { it.isBuiltIn }
+                } else {
+                    _errorMessage.value = "Diagram not found"
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to load diagram: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
     }
 
     /**
@@ -47,6 +84,52 @@ class MermaidEditorViewModel(
      */
     fun updateContent(content: String) {
         _editorContent.value = content
+    }
+
+    /**
+     * Clear the current error message
+     */
+    fun clearError() {
+        _errorMessage.value = null
+    }
+
+    /**
+     * Save the current diagram (update if existing, create if new)
+     */
+    fun saveDiagram(onSuccess: (String) -> Unit, onError: (Exception) -> Unit) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                
+                val currentId = _currentDiagramId.value
+                val title = _diagramTitle.value.ifEmpty { "Untitled Diagram" }
+                val content = _editorContent.value
+                
+                if (currentId != null) {
+                    // Update existing diagram
+                    val existingDiagram = diagramRepository.getDiagramById(currentId)
+                    if (existingDiagram != null) {
+                        val updatedDiagram = existingDiagram.copy(
+                            title = title,
+                            content = content,
+                            diagramType = _selectedDiagramType.value,
+                            updatedAt = java.time.LocalDateTime.now()
+                        )
+                        diagramRepository.updateDiagram(updatedDiagram)
+                        onSuccess("Diagram updated successfully!")
+                    } else {
+                        onError(Exception("Diagram not found"))
+                    }
+                } else {
+                    onError(Exception("No diagram loaded to save. Use 'Create Diagram' to create a new one."))
+                }
+            } catch (e: Exception) {
+                onError(e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
     }
 
     /**
@@ -64,9 +147,8 @@ class MermaidEditorViewModel(
         viewModelScope.launch {
             try {
                 _isLoading.value = true
-                getBuiltInTemplatesUseCase().collectLatest { templates ->
-                    _availableTemplates.value = templates
-                }
+                val templates = getBuiltInTemplatesUseCase().first()
+                _availableTemplates.value = templates
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to load templates: ${e.message}"
             } finally {
@@ -82,9 +164,8 @@ class MermaidEditorViewModel(
         viewModelScope.launch {
             try {
                 _isLoading.value = true
-                getTemplatesByTypeUseCase(diagramType).collectLatest { templates ->
-                    _availableTemplates.value = templates.filter { it.isBuiltIn }
-                }
+                val templates = getTemplatesByTypeUseCase(diagramType).first()
+                _availableTemplates.value = templates.filter { it.isBuiltIn }
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to load templates for $diagramType: ${e.message}"
             } finally {
@@ -93,6 +174,8 @@ class MermaidEditorViewModel(
         }
     }
 
+
+
     /**
      * Get template content by template ID
      */
@@ -100,12 +183,7 @@ class MermaidEditorViewModel(
         return _availableTemplates.value.find { it.id == templateId }?.content
     }
 
-    /**
-     * Clear error message
-     */
-    fun clearError() {
-        _errorMessage.value = null
-    }
+
 
     /**
      * Provide syntax suggestions based on current diagram type

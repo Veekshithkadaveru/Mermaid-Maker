@@ -10,6 +10,6 @@ import org.koin.dsl.module
 val viewModelModule = module {
     viewModel { HomeViewModel(get()) }
     viewModel { CreateDiagramViewModel(get()) }
-    viewModel { MermaidEditorViewModel(get(), get()) }
+    viewModel { MermaidEditorViewModel(get(), get(), get()) }
     viewModel { ApiKeyViewModel(get(), get()) }
 }
