@@ -1,5 +1,6 @@
 package com.example.mermaidmaker.ui.editor
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
@@ -14,6 +15,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,39 +72,85 @@ fun SyntaxHighlightedEditor(
         )
         
         CompositionLocalProvider(LocalTextSelectionColors provides customTextSelectionColors) {
-            Box(modifier = Modifier.weight(1f).padding(8.dp)) {
-                // Syntax highlighted overlay
-                if (textFieldValue.text.isNotEmpty()) {
-                    Text(
-                        text = applySyntaxHighlighting(textFieldValue.text),
-                        style = TextStyle(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = fontSize.sp,
-                            lineHeight = (fontSize + 6).sp
-                        ),
-                        modifier = Modifier.fillMaxSize()
-                    )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(8.dp)
+            ) {
+                val lines = remember(textFieldValue.text) {
+                    if (textFieldValue.text.isEmpty()) listOf("") else textFieldValue.text.split('\n')
                 }
                 
-                // Actual input field (transparent)
-                BasicTextField(
-                    value = textFieldValue,
-                    onValueChange = { newValue ->
-                        textFieldValue = newValue
-                        onContentChanged(newValue.text)
-                    },
-                    textStyle = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = fontSize.sp,
-                        lineHeight = (fontSize + 6).sp,
-                        color = Color.Transparent // Make text transparent so highlighting shows
-                    ),
-                    modifier = Modifier.fillMaxSize(),
-                    decorationBox = { innerTextField ->
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            if (textFieldValue.text.isEmpty()) {
-                                Text(
-                                    text = """Type your Mermaid diagram here...
+                // Line numbers background
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(48.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Line numbers with exact text alignment
+                    Column(
+                        modifier = Modifier.width(48.dp)
+                    ) {
+                        lines.forEachIndexed { index, _ ->
+                            Text(
+                                text = "${index + 1}",
+                                style = TextStyle(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = fontSize.sp,
+                                    lineHeight = (fontSize + 6).sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    textAlign = TextAlign.Center
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height((fontSize + 6).dp)
+                            )
+                        }
+                    }
+                    
+                    // Code editor area with exact same line height
+                    Box(modifier = Modifier.weight(1f)) {
+                        // Syntax highlighted overlay
+                        if (textFieldValue.text.isNotEmpty()) {
+                            Text(
+                                text = applySyntaxHighlighting(textFieldValue.text),
+                                style = TextStyle(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = fontSize.sp,
+                                    lineHeight = (fontSize + 6).sp
+                                ),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(start = 8.dp)
+                            )
+                        }
+                        
+                        // Actual input field (transparent)
+                        BasicTextField(
+                            value = textFieldValue,
+                            onValueChange = { newValue ->
+                                textFieldValue = newValue
+                                onContentChanged(newValue.text)
+                            },
+                            textStyle = TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = fontSize.sp,
+                                lineHeight = (fontSize + 6).sp,
+                                color = Color.Transparent // Make text transparent so highlighting shows
+                            ),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(start = 8.dp),
+                            decorationBox = { innerTextField ->
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    if (textFieldValue.text.isEmpty()) {
+                                        Text(
+                                            text = """Type your Mermaid diagram here...
 
 Examples:
 graph TD
@@ -112,17 +160,60 @@ graph TD
 sequenceDiagram
     Alice->>Bob: Hello Bob!
     Bob-->>Alice: Hello Alice!""",
-                                    style = TextStyle(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = fontSize.sp,
-                                        lineHeight = (fontSize + 6).sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                    )
-                                )
+                                            style = TextStyle(
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = fontSize.sp,
+                                                lineHeight = (fontSize + 6).sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                            )
+                                        )
+                                    }
+                                    innerTextField()
+                                }
                             }
-                            innerTextField()
-                        }
+                        )
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Line number gutter component
+ */
+@Composable
+private fun LineNumberGutter(
+    text: String,
+    fontSize: Int,
+    modifier: Modifier = Modifier
+) {
+    val lines = remember(text) {
+        if (text.isEmpty()) listOf("") else text.split('\n')
+    }
+    
+    val maxLineNumber = lines.size
+    val lineNumberWidth = remember(maxLineNumber) {
+        maxLineNumber.toString().length.coerceAtLeast(2)
+    }
+    
+    // Create a background box that matches the height of the text content
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .padding(horizontal = 4.dp)
+    ) {
+        Column {
+            lines.forEachIndexed { index, _ ->
+                Text(
+                    text = "${index + 1}".padStart(lineNumberWidth, ' '),
+                    style = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = fontSize.sp,
+                        lineHeight = (fontSize + 6).sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
                 )
             }
         }
@@ -265,7 +356,6 @@ private fun applySyntaxHighlighting(text: String): AnnotatedString {
 @Composable
 fun SimpleHighlightedEditor(
     content: String = "",
-    fontSize: Int = 14,
     onContentChanged: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
