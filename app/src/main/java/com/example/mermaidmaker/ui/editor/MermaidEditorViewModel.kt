@@ -7,10 +7,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.domain.model.Template
+import com.example.mermaidmaker.domain.repository.DiagramRepository
 import com.example.mermaidmaker.domain.usecase.GetBuiltInTemplatesUseCase
 import com.example.mermaidmaker.domain.usecase.GetTemplatesByTypeUseCase
-import com.example.mermaidmaker.domain.repository.DiagramRepository
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -58,7 +61,7 @@ class MermaidEditorViewModel(
             try {
                 _isLoading.value = true
                 _errorMessage.value = null
-                
+
                 val diagram = diagramRepository.getDiagramById(diagramId)
                 if (diagram != null) {
                     _currentDiagramId.value = diagramId
@@ -101,11 +104,11 @@ class MermaidEditorViewModel(
             try {
                 _isLoading.value = true
                 _errorMessage.value = null
-                
+
                 val currentId = _currentDiagramId.value
                 val title = _diagramTitle.value.ifEmpty { "Untitled Diagram" }
                 val content = _editorContent.value
-                
+
                 if (currentId != null) {
                     // Update existing diagram
                     val existingDiagram = diagramRepository.getDiagramById(currentId)
@@ -175,14 +178,12 @@ class MermaidEditorViewModel(
     }
 
 
-
     /**
      * Get template content by template ID
      */
     fun getTemplateContent(templateId: String): String? {
         return _availableTemplates.value.find { it.id == templateId }?.content
     }
-
 
 
     /**
@@ -192,7 +193,7 @@ class MermaidEditorViewModel(
         return when (_selectedDiagramType.value) {
             DiagramType.FLOWCHART -> listOf(
                 "graph TD",
-                "graph LR", 
+                "graph LR",
                 "A[Rectangle]",
                 "B(Round)",
                 "C{Diamond}",
@@ -204,6 +205,7 @@ class MermaidEditorViewModel(
                 "B -.-> C",
                 "C ==> D"
             )
+
             DiagramType.SEQUENCE -> listOf(
                 "sequenceDiagram",
                 "participant A as Actor",
@@ -217,6 +219,7 @@ class MermaidEditorViewModel(
                 "alt Alternative",
                 "opt Optional"
             )
+
             DiagramType.CLASS -> listOf(
                 "classDiagram",
                 "class Animal {",
@@ -228,6 +231,7 @@ class MermaidEditorViewModel(
                 "Animal : +makeSound()",
                 "<<interface>> Animal"
             )
+
             DiagramType.STATE -> listOf(
                 "stateDiagram-v2",
                 "[*] --> State1",
@@ -238,6 +242,7 @@ class MermaidEditorViewModel(
                 "  SubState --> [*]",
                 "}"
             )
+
             DiagramType.ER_DIAGRAM -> listOf(
                 "erDiagram",
                 "CUSTOMER {",
@@ -250,6 +255,7 @@ class MermaidEditorViewModel(
                 "}",
                 "CUSTOMER ||--o{ ORDER : places"
             )
+
             DiagramType.JOURNEY -> listOf(
                 "journey",
                 "title User Journey",
@@ -258,6 +264,7 @@ class MermaidEditorViewModel(
                 "  Add to cart: 3: User",
                 "  Checkout: 1: User, System"
             )
+
             DiagramType.GANTT -> listOf(
                 "gantt",
                 "title Project Timeline",
@@ -266,12 +273,14 @@ class MermaidEditorViewModel(
                 "Design : 2023-01-01, 7d",
                 "Code : after design, 14d"
             )
+
             DiagramType.PIE -> listOf(
                 "pie title Survey Results",
                 "\"Satisfied\" : 85",
-                "\"Neutral\" : 10", 
+                "\"Neutral\" : 10",
                 "\"Dissatisfied\" : 5"
             )
+
             DiagramType.GITGRAPH -> listOf(
                 "gitgraph",
                 "commit",
@@ -307,8 +316,17 @@ class MermaidEditorViewModel(
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = clipboard.primaryClip
         if (clip != null && clip.itemCount > 0) {
-            val text = clip.getItemAt(0).text?.toString() ?: ""
-            _editorContent.value = text
+            val item = clip.getItemAt(0)
+            val pastedText = item.coerceToText(context)?.toString() ?: ""
+            if (pastedText.isNotBlank()) {
+                val current = _editorContent.value
+                _editorContent.value =
+                    if (current.isBlank()) pastedText else current + "\n" + pastedText
+            } else {
+                _errorMessage.value = "Clipboard is empty or not text"
+            }
+        } else {
+            _errorMessage.value = "Nothing to paste"
         }
     }
 
@@ -351,7 +369,7 @@ class MermaidEditorViewModel(
                     D --> F[End]
                     E --> F
             """.trimIndent()
-            
+
             DiagramType.SEQUENCE -> """
                 sequenceDiagram
                     participant User
@@ -363,7 +381,7 @@ class MermaidEditorViewModel(
                     Database-->>System: Result
                     System-->>User: Response
             """.trimIndent()
-            
+
             DiagramType.CLASS -> """
                 classDiagram
                     class Animal {
@@ -378,7 +396,7 @@ class MermaidEditorViewModel(
                     
                     Animal <|-- Dog
             """.trimIndent()
-            
+
             DiagramType.STATE -> """
                 stateDiagram-v2
                     [*] --> Idle
@@ -388,7 +406,7 @@ class MermaidEditorViewModel(
                     Complete --> [*]
                     Error --> Idle : retry
             """.trimIndent()
-            
+
             DiagramType.ER_DIAGRAM -> """
                 erDiagram
                     USER {
@@ -406,7 +424,7 @@ class MermaidEditorViewModel(
                     
                     USER ||--o{ POST : creates
             """.trimIndent()
-            
+
             DiagramType.JOURNEY -> """
                 journey
                     title User Shopping Journey
@@ -418,7 +436,7 @@ class MermaidEditorViewModel(
                         Checkout: 2: User, System
                         Payment: 1: User, Payment Gateway
             """.trimIndent()
-            
+
             DiagramType.GANTT -> """
                 gantt
                     title Project Timeline
@@ -433,7 +451,7 @@ class MermaidEditorViewModel(
                         Backend: after design, 10d
                         Testing: after frontend, 5d
             """.trimIndent()
-            
+
             DiagramType.PIE -> """
                 pie title Technology Usage
                     "JavaScript" : 40
@@ -441,7 +459,7 @@ class MermaidEditorViewModel(
                     "Java" : 20
                     "Other" : 15
             """.trimIndent()
-            
+
             DiagramType.GITGRAPH -> """
                 gitgraph
                     commit id: "Initial"
