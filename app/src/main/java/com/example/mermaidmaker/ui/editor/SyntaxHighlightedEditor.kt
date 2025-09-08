@@ -3,6 +3,13 @@ package com.example.mermaidmaker.ui.editor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,11 +36,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -141,14 +153,24 @@ fun SyntaxHighlightedEditor(
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                 )
 
+                var editorHeightPx by remember { mutableStateOf(0) }
+                val verticalScrollState = rememberScrollState()
                 Row(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(verticalScrollState)
+                        .onSizeChanged { editorHeightPx = it.height }
                 ) {
 
                     Column(
                         modifier = Modifier.width(48.dp)
                     ) {
-                        lines.forEachIndexed { index, _ ->
+                        // Determine how many line numbers should be visible to fill the viewport
+                        val visibleLines = remember(editorHeightPx, lineHeightPx) {
+                            if (lineHeightPx > 0f) kotlin.math.ceil(editorHeightPx / lineHeightPx).toInt().coerceAtLeast(1) else lines.size
+                        }
+                        val totalLinesToShow = maxOf(lines.size, visibleLines)
+                        repeat(totalLinesToShow) { index ->
                             Text(
                                 text = "${index + 1}",
                                 style = TextStyle(
@@ -162,17 +184,43 @@ fun SyntaxHighlightedEditor(
                                     .fillMaxWidth()
                                     .height(lineHeightDp)
                                     .background(if (index == selectedLineIndex) gutterHighlightColor else Color.Transparent)
-                                    .clickable {
-                                        clickedLineIndex = index
+                                    .let { base ->
+                                        if (index < lines.size) base.clickable { clickedLineIndex = index } else base
                                     }
                             )
                         }
                     }
 
+                    val scope = rememberCoroutineScope()
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .horizontalScroll(horizontalScrollState)
+                            .draggable(
+                                orientation = Orientation.Horizontal,
+                                state = rememberDraggableState { delta ->
+                                    val target = (horizontalScrollState.value - delta).roundToInt()
+                                        .coerceIn(0, horizontalScrollState.maxValue)
+                                    scope.launch { horizontalScrollState.scrollTo(target) }
+                                }
+                            )
+                            .scrollable(
+                                orientation = Orientation.Horizontal,
+                                state = rememberScrollableState { delta ->
+                                    val target = (horizontalScrollState.value - delta).roundToInt()
+                                        .coerceIn(0, horizontalScrollState.maxValue)
+                                    scope.launch { horizontalScrollState.scrollTo(target) }
+                                    delta
+                                }
+                            )
+                            .pointerInput(horizontalScrollState) {
+                                detectHorizontalDragGestures(onHorizontalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    val target = (horizontalScrollState.value - dragAmount).roundToInt()
+                                        .coerceIn(0, horizontalScrollState.maxValue)
+                                    scope.launch { horizontalScrollState.scrollTo(target) }
+                                })
+                            }
                     ) {
                         // Track text layout to align highlight exactly
                         var textLayout: TextLayoutResult? by remember { mutableStateOf(null) }
@@ -187,69 +235,72 @@ fun SyntaxHighlightedEditor(
                                 with(density) { (maxRight + 16f).toDp() }
                             } else 0.dp
                         }
-                        // Draw highlight using actual layout line positions
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .widthIn(min = contentWidthDp)
-                                .drawBehind {
-                                    val layout = textLayout
-                                    if (layout != null) {
-                                        val lineIndex = selectedLineIndex.coerceIn(
-                                            0,
-                                            (layout.lineCount - 1).coerceAtLeast(0)
-                                        )
-                                        if (layout.lineCount > 0) {
-                                            val top = layout.getLineTop(lineIndex)
-                                            val bottom = layout.getLineBottom(lineIndex)
-                                            drawRect(
-                                                color = highlightColor,
-                                                topLeft = Offset(0f, top),
-                                                size = Size(size.width, bottom - top)
+                        val widthMod = if (contentWidthDp > 0.dp) Modifier.width(contentWidthDp) else Modifier.fillMaxWidth()
+                        // Compute total content height based on lines
+                        val contentHeightDp = lineHeightDp * lines.size
+                        // Container matching content intrinsic size (enables 2D scroll)
+                        Box(modifier = widthMod.height(contentHeightDp)) {
+                            // Highlight layer using text layout line positions
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .drawBehind {
+                                        val layout = textLayout
+                                        if (layout != null) {
+                                            val lineIndex = selectedLineIndex.coerceIn(
+                                                0,
+                                                (layout.lineCount - 1).coerceAtLeast(0)
                                             )
+                                            if (layout.lineCount > 0) {
+                                                val top = layout.getLineTop(lineIndex)
+                                                val bottom = layout.getLineBottom(lineIndex)
+                                                drawRect(
+                                                    color = highlightColor,
+                                                    topLeft = Offset(0f, top),
+                                                    size = Size(size.width, bottom - top)
+                                                )
+                                            }
                                         }
                                     }
-                                }
-                        )
-                        // Syntax highlighted overlay
-                        if (textFieldValue.text.isNotEmpty()) {
-                            Text(
-                                text = applySyntaxHighlighting(textFieldValue.text),
-                                style = TextStyle(
+                            )
+                            // Syntax highlighted overlay
+                            if (textFieldValue.text.isNotEmpty()) {
+                                Text(
+                                    text = applySyntaxHighlighting(textFieldValue.text),
+                                    style = TextStyle(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = fontSize.sp,
+                                        lineHeight = lineHeightSp
+                                    ),
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .padding(start = 8.dp),
+                                    softWrap = false,
+                                    onTextLayout = { result -> textLayout = result }
+                                )
+                            }
+
+                            // Actual input field (transparent)
+                            BasicTextField(
+                                value = textFieldValue,
+                                onValueChange = { newValue ->
+                                    textFieldValue = newValue
+                                    onContentChanged(newValue.text)
+                                },
+                                textStyle = TextStyle(
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = fontSize.sp,
-                                    lineHeight = lineHeightSp
+                                    lineHeight = lineHeightSp,
+                                    color = Color.Transparent
                                 ),
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .widthIn(min = contentWidthDp)
+                                    .matchParentSize()
                                     .padding(start = 8.dp),
-                                onTextLayout = { result -> textLayout = result }
-                            )
-                        }
-
-                        // Actual input field (transparent)
-                        BasicTextField(
-                            value = textFieldValue,
-                            onValueChange = { newValue ->
-                                textFieldValue = newValue
-                                onContentChanged(newValue.text)
-                            },
-                            textStyle = TextStyle(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = fontSize.sp,
-                                lineHeight = lineHeightSp,
-                                color = Color.Transparent
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .widthIn(min = contentWidthDp)
-                                .padding(start = 8.dp),
-                            decorationBox = { innerTextField ->
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    if (textFieldValue.text.isEmpty()) {
-                                        Text(
-                                            text = """Type your Mermaid diagram here...
+                                decorationBox = { innerTextField ->
+                                    Box(modifier = Modifier.matchParentSize()) {
+                                        if (textFieldValue.text.isEmpty()) {
+                                            Text(
+                                                text = """Type your Mermaid diagram here...
 
 Examples:
 graph TD
@@ -259,20 +310,21 @@ graph TD
 sequenceDiagram
     Alice->>Bob: Hello Bob!
     Bob-->>Alice: Hello Alice!""",
-                                            style = TextStyle(
-                                                fontFamily = FontFamily.Monospace,
-                                                fontSize = fontSize.sp,
-                                                lineHeight = (fontSize + 6).sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                    alpha = 0.6f
+                                                style = TextStyle(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontSize = fontSize.sp,
+                                                    lineHeight = (fontSize + 6).sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                        alpha = 0.6f
+                                                    )
                                                 )
                                             )
-                                        )
+                                        }
+                                        innerTextField()
                                     }
-                                    innerTextField()
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
