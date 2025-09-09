@@ -2,14 +2,13 @@ package com.example.mermaidmaker.ui.editor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.gestures.rememberScrollableState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,11 +19,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -33,18 +32,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.input.pointer.pointerInput
-import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -58,6 +58,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+import android.view.KeyEvent as AndroidKeyEvent
+
+
+private data class EditorLintError(val line: Int, val message: String)
 
 /**
  * Enhanced native editor with basic syntax highlighting
@@ -71,19 +78,80 @@ fun SyntaxHighlightedEditor(
     modifier: Modifier = Modifier
 ) {
     var textFieldValue by remember { mutableStateOf(TextFieldValue(content)) }
+
+    data class HistoryEntry(val value: TextFieldValue, val timestampMs: Long)
+
+    val history = remember { mutableStateListOf<HistoryEntry>() }
+    var historyIndex by remember { mutableStateOf(-1) }
+    var lastCommitTimeMs by remember { mutableStateOf(0L) }
+
+    fun canUndo(): Boolean = historyIndex > 0
+    fun canRedo(): Boolean = historyIndex in 0 until (history.size - 1)
+
+    fun pushHistory(newValue: TextFieldValue, forceNewEntry: Boolean = false) {
+        val now = System.currentTimeMillis()
+
+        if (historyIndex < history.lastIndex) {
+            while (history.size - 1 > historyIndex) history.removeAt(history.lastIndex)
+        }
+        val coalesceWindowMs = 300
+        val shouldCoalesce =
+            !forceNewEntry && historyIndex >= 0 && (now - lastCommitTimeMs) < coalesceWindowMs
+        if (shouldCoalesce) {
+            history[historyIndex] = HistoryEntry(newValue, now)
+        } else {
+            history.add(HistoryEntry(newValue, now))
+            historyIndex = history.lastIndex
+
+            val maxEntries = 100
+            if (history.size > maxEntries) {
+                val removeCount = history.size - maxEntries
+                repeat(removeCount) { history.removeAt(0) }
+                historyIndex = history.lastIndex
+            }
+        }
+        lastCommitTimeMs = now
+    }
+
+    fun undo() {
+        if (!canUndo()) return
+        historyIndex -= 1
+        val entry = history[historyIndex]
+        textFieldValue = entry.value
+        onContentChanged(entry.value.text)
+    }
+
+    fun redo() {
+        if (!canRedo()) return
+        historyIndex += 1
+        val entry = history[historyIndex]
+        textFieldValue = entry.value
+        onContentChanged(entry.value.text)
+    }
+
     val density = LocalDensity.current
 
-    // Update text field when content prop changes
     LaunchedEffect(content) {
         if (content != textFieldValue.text) {
             textFieldValue = textFieldValue.copy(text = content)
+            if (history.isEmpty()) {
+                pushHistory(textFieldValue, forceNewEntry = true)
+            }
         }
+    }
+
+
+    var lintErrors by remember { mutableStateOf<List<EditorLintError>>(emptyList()) }
+    LaunchedEffect(textFieldValue.text) {
+
+        delay(300)
+        lintErrors = analyzeMermaidFast(textFieldValue.text)
     }
 
     Column(
         modifier = modifier.fillMaxSize()
     ) {
-        // Status bar
+
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surfaceVariant
@@ -97,15 +165,35 @@ fun SyntaxHighlightedEditor(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Text(
-                    text = "${textFieldValue.text.length} characters",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = if (lintErrors.isNotEmpty()) "${lintErrors.size} errors" else "No errors",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (lintErrors.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Undo",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (canUndo()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .let { base -> if (canUndo()) base.clickable { undo() } else base }
+                    )
+                    Text(
+                        text = "Redo",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (canRedo()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .let { base -> if (canRedo()) base.clickable { redo() } else base }
+                    )
+                    Text(
+                        text = "${textFieldValue.text.length} characters",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
-        // Enhanced text editor with syntax highlighting
         val customTextSelectionColors = TextSelectionColors(
             handleColor = MaterialTheme.colorScheme.primary,
             backgroundColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
@@ -116,6 +204,28 @@ fun SyntaxHighlightedEditor(
                 modifier = Modifier
                     .weight(1f)
                     .padding(8.dp)
+                    .onPreviewKeyEvent { event: KeyEvent ->
+                        val native = event.nativeKeyEvent
+                        if (native.action == AndroidKeyEvent.ACTION_DOWN) {
+                            val isCmdOrCtrl = native.isCtrlPressed || native.isMetaPressed
+                            when (native.keyCode) {
+                                AndroidKeyEvent.KEYCODE_Z -> {
+                                    if (isCmdOrCtrl) {
+                                        if (native.isShiftPressed) redo() else undo()
+                                        return@onPreviewKeyEvent true
+                                    }
+                                }
+
+                                AndroidKeyEvent.KEYCODE_Y -> {
+                                    if (isCmdOrCtrl) {
+                                        redo()
+                                        return@onPreviewKeyEvent true
+                                    }
+                                }
+                            }
+                        }
+                        false
+                    }
             ) {
                 val horizontalScrollState = rememberScrollState()
                 val lines = remember(textFieldValue.text) {
@@ -145,7 +255,6 @@ fun SyntaxHighlightedEditor(
                 val lineHeightDp = with(density) { lineHeightSp.toDp() }
                 val lineHeightPx = with(density) { lineHeightSp.toPx() }
 
-                // Line numbers background
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -165,19 +274,23 @@ fun SyntaxHighlightedEditor(
                     Column(
                         modifier = Modifier.width(48.dp)
                     ) {
-                        // Determine how many line numbers should be visible to fill the viewport
+
                         val visibleLines = remember(editorHeightPx, lineHeightPx) {
-                            if (lineHeightPx > 0f) kotlin.math.ceil(editorHeightPx / lineHeightPx).toInt().coerceAtLeast(1) else lines.size
+                            if (lineHeightPx > 0f) kotlin.math.ceil(editorHeightPx / lineHeightPx)
+                                .toInt().coerceAtLeast(1) else lines.size
                         }
                         val totalLinesToShow = maxOf(lines.size, visibleLines)
+                        val errorLines = remember(lintErrors) { lintErrors.map { it.line }.toSet() }
                         repeat(totalLinesToShow) { index ->
                             Text(
-                                text = "${index + 1}",
+                                text = if (errorLines.contains(index)) "!" else "${index + 1}",
                                 style = TextStyle(
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = fontSize.sp,
                                     lineHeight = lineHeightSp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    color = if (errorLines.contains(index)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                        alpha = 0.6f
+                                    ),
                                     textAlign = TextAlign.Center
                                 ),
                                 modifier = Modifier
@@ -185,7 +298,9 @@ fun SyntaxHighlightedEditor(
                                     .height(lineHeightDp)
                                     .background(if (index == selectedLineIndex) gutterHighlightColor else Color.Transparent)
                                     .let { base ->
-                                        if (index < lines.size) base.clickable { clickedLineIndex = index } else base
+                                        if (index < lines.size) base.clickable {
+                                            clickedLineIndex = index
+                                        } else base
                                     }
                             )
                         }
@@ -198,7 +313,7 @@ fun SyntaxHighlightedEditor(
                             .horizontalScroll(horizontalScrollState)
                             .draggable(
                                 orientation = Orientation.Horizontal,
-                                state = rememberDraggableState { delta ->
+                                state = rememberDraggableState { delta: Float ->
                                     val target = (horizontalScrollState.value - delta).roundToInt()
                                         .coerceIn(0, horizontalScrollState.maxValue)
                                     scope.launch { horizontalScrollState.scrollTo(target) }
@@ -206,7 +321,7 @@ fun SyntaxHighlightedEditor(
                             )
                             .scrollable(
                                 orientation = Orientation.Horizontal,
-                                state = rememberScrollableState { delta ->
+                                state = rememberScrollableState { delta: Float ->
                                     val target = (horizontalScrollState.value - delta).roundToInt()
                                         .coerceIn(0, horizontalScrollState.maxValue)
                                     scope.launch { horizontalScrollState.scrollTo(target) }
@@ -216,15 +331,16 @@ fun SyntaxHighlightedEditor(
                             .pointerInput(horizontalScrollState) {
                                 detectHorizontalDragGestures(onHorizontalDrag = { change, dragAmount ->
                                     change.consume()
-                                    val target = (horizontalScrollState.value - dragAmount).roundToInt()
-                                        .coerceIn(0, horizontalScrollState.maxValue)
+                                    val target =
+                                        (horizontalScrollState.value - dragAmount).roundToInt()
+                                            .coerceIn(0, horizontalScrollState.maxValue)
                                     scope.launch { horizontalScrollState.scrollTo(target) }
                                 })
                             }
                     ) {
-                        // Track text layout to align highlight exactly
+
                         var textLayout: TextLayoutResult? by remember { mutableStateOf(null) }
-                        // Determine content width from layout (widest line)
+
                         val contentWidthDp = remember(textLayout) {
                             val layout = textLayout
                             if (layout != null && layout.lineCount > 0) {
@@ -235,12 +351,13 @@ fun SyntaxHighlightedEditor(
                                 with(density) { (maxRight + 16f).toDp() }
                             } else 0.dp
                         }
-                        val widthMod = if (contentWidthDp > 0.dp) Modifier.width(contentWidthDp) else Modifier.fillMaxWidth()
-                        // Compute total content height based on lines
+                        val widthMod =
+                            if (contentWidthDp > 0.dp) Modifier.width(contentWidthDp) else Modifier.fillMaxWidth()
+
                         val contentHeightDp = lineHeightDp * lines.size
-                        // Container matching content intrinsic size (enables 2D scroll)
+
                         Box(modifier = widthMod.height(contentHeightDp)) {
-                            // Highlight layer using text layout line positions
+
                             Box(
                                 modifier = Modifier
                                     .matchParentSize()
@@ -286,6 +403,7 @@ fun SyntaxHighlightedEditor(
                                 onValueChange = { newValue ->
                                     textFieldValue = newValue
                                     onContentChanged(newValue.text)
+                                    pushHistory(newValue)
                                 },
                                 textStyle = TextStyle(
                                     fontFamily = FontFamily.Monospace,
@@ -380,7 +498,7 @@ private fun applySyntaxHighlighting(text: String): AnnotatedString {
             }
 
             if (currentIndex == 0) {
-                // No keyword found, process the rest of the line
+
                 var i = 0
                 while (i < line.length) {
                     when {
@@ -455,10 +573,56 @@ private fun applySyntaxHighlighting(text: String): AnnotatedString {
                     }
                 }
             } else {
-                // Append the rest of the line after the keyword
+
                 append(line.substring(currentIndex))
             }
         }
     }
+}
+
+/**
+ * Very fast Mermaid lint: mode keyword presence and basic bracket balance per line
+ */
+private fun analyzeMermaidFast(text: String): List<EditorLintError> {
+    val errors = mutableListOf<EditorLintError>()
+    if (text.isBlank()) return emptyList()
+
+    val lines = text.split('\n')
+
+    val keywords = setOf(
+        "graph", "flowchart", "sequenceDiagram", "classDiagram",
+        "stateDiagram", "stateDiagram-v2", "erDiagram", "journey", "gantt", "pie", "gitgraph"
+    )
+    val firstNonEmptyIndex = lines.indexOfFirst { it.isNotBlank() }
+    if (firstNonEmptyIndex >= 0) {
+        val first = lines[firstNonEmptyIndex].trimStart()
+        if (keywords.none { first.startsWith(it) }) {
+            errors.add(
+                EditorLintError(
+                    firstNonEmptyIndex,
+                    "Missing diagram type (e.g., graph TD, sequenceDiagram)"
+                )
+            )
+        }
+    }
+
+    val pairs = mapOf('(' to ')', '[' to ']', '{' to '}')
+    lines.forEachIndexed { idx, line ->
+        val stack = ArrayDeque<Char>()
+        line.forEach { ch ->
+            if (ch in pairs.keys) stack.addLast(ch)
+            else if (ch in pairs.values) {
+                if (stack.isEmpty() || pairs[stack.removeLast()] != ch) {
+                    errors.add(EditorLintError(idx, "Unbalanced brackets"))
+                    return@forEachIndexed
+                }
+            }
+        }
+        if (stack.isNotEmpty()) {
+            errors.add(EditorLintError(idx, "Unclosed bracket"))
+        }
+    }
+
+    return errors
 }
 
