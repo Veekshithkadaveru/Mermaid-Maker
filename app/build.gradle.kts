@@ -101,5 +101,5 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     // AndroidSVG for reliable SVG -> Bitmap rendering (export PNG)
-    implementation("com.caverock:androidsvg:1.4")
+    implementation(libs.androidsvg)
 }

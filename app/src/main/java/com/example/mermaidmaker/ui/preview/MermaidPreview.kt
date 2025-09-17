@@ -8,10 +8,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.mermaidmaker.util.WebViewPngGenerator
+import com.example.mermaidmaker.util.MemoryUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +40,7 @@ class MermaidPreviewState {
     
     private var webView: WebView? = null
     private var queuedContent: String? = null
+    private val pngGenerator = WebViewPngGenerator()
     
     internal fun setWebView(webView: WebView) {
         this.webView = webView
@@ -235,183 +236,28 @@ class MermaidPreviewState {
 
     private fun capturePngViaWebView(callback: (ByteArray?) -> Unit) {
         webView?.let { webView ->
-            try {
-                if (!_isReady.value) {
-                    Log.e("MermaidPreview", "WebView not ready for PNG generation")
+            CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    val result = pngGenerator.generatePng(webView, _isReady.value)
+                    callback(result)
+                } catch (e: Exception) {
+                    Log.e("MermaidPreview", "Error in PNG generation via utility", e)
                     callback(null)
-                    return
                 }
-                webView.post {
-                    try {
-                        webView.evaluateJavascript("getScale();") { currentScaleResult ->
-                            val currentScale = try {
-                                currentScaleResult?.removeSurrounding("\"")?.toFloatOrNull() ?: 1.0f
-                            } catch (e: Exception) { 1.0f }
-                            webView.evaluateJavascript("setScale(1.0);", null)
-                            webView.postDelayed({
-                                try {
-                                    webView.evaluateJavascript(
-                                        """
-                                        (function() {
-                                            try {
-                                                const hide = (el) => { if (el) el.style.display = 'none'; };
-                                                hide(document.getElementById('status'));
-                                                hide(document.getElementById('error'));
-                                                hide(document.getElementById('loading'));
-                                                const svg = document.querySelector('#preview-scale svg') || document.querySelector('#preview svg') || document.querySelector('svg');
-                                                if (svg) {
-                                                    const bbox = svg.getBBox();
-                                                    const vb = (svg.viewBox && svg.viewBox.baseVal) ? svg.viewBox.baseVal : null;
-                                                    const w = Math.ceil(bbox.width || (vb ? vb.width : (svg.clientWidth || 800)));
-                                                    const h = Math.ceil(bbox.height || (vb ? vb.height : (svg.clientHeight || 600)));
-                                                    const minX = Math.floor(bbox.x || (vb ? vb.x : 0));
-                                                    const minY = Math.floor(bbox.y || (vb ? vb.y : 0));
-                                                    const pad = 8;
-                                                    const w2 = w + pad * 2;
-                                                    const h2 = h + pad * 2;
-                                                    // Add equal margins around content to ensure visual centering
-                                                    const centerPad = 24; // exported PNG margin in CSS px
-                                                    const canvasW = w2 + centerPad * 2;
-                                                    const canvasH = h2 + centerPad * 2;
-                                                    const pc = document.querySelector('.preview-container');
-                                                    if (pc) { pc.style.padding = '0'; pc.style.border = 'none'; pc.style.alignItems = 'flex-start'; pc.style.justifyContent = 'flex-start'; }
-                                                    const preview = document.getElementById('preview');
-                                                    if (preview) { preview.style.padding = '0'; preview.style.margin = '0'; preview.style.width = canvasW + 'px'; preview.style.height = canvasH + 'px'; }
-                                                    const scale = document.getElementById('preview-scale');
-                                                    if (scale) { scale.style.transform = 'scale(1)'; scale.style.width = canvasW + 'px'; scale.style.height = canvasH + 'px'; }
-                                                    document.body.style.margin = '0';
-                                                    document.body.style.padding = '0';
-                                                    const container = document.querySelector('.container');
-                                                    if (container) { container.style.padding = '0'; container.style.margin = '0'; container.style.height = canvasH + 'px'; }
-                                                    try {
-                                                        svg.style.width = canvasW + 'px';
-                                                        svg.style.height = canvasH + 'px';
-                                                        svg.setAttribute('width', canvasW.toString());
-                                                        svg.setAttribute('height', canvasH.toString());
-                                                        const vbX = (minX - pad - centerPad);
-                                                        const vbY = (minY - pad - centerPad);
-                                                        svg.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + canvasW + ' ' + canvasH);
-                                                        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-                                                    } catch (e) {}
-                                                    return JSON.stringify({ width: canvasW, height: canvasH, dpr: (window.devicePixelRatio || 1) });
-                                                }
-                                            } catch (e) {}
-                                            return JSON.stringify({ width: 800, height: 600 });
-                                        })();
-                                        """.trimIndent()
-                                    ) { dimensionsResult ->
-                                        try {
-                                            val dimensionsJson = dimensionsResult?.removeSurrounding("\"")?.replace("\\\"", "\"") ?: "{\"width\":800,\"height\":600}"
-                                            val json = try { JSONObject(dimensionsJson) } catch (e: Exception) { JSONObject().apply { put("width", 800); put("height", 600); put("dpr", 1.0) } }
-                                            val cssWidth = json.optInt("width", 800)
-                                            val cssHeight = json.optInt("height", 600)
-                                            val devicePixelRatio = json.optDouble("dpr", 1.0)
-                                            val svgWidth = cssWidth.coerceAtLeast(200).coerceAtMost(8000)
-                                            val svgHeight = cssHeight.coerceAtLeast(200).coerceAtMost(8000)
-                                            val originalWidth = webView.width
-                                            val originalHeight = webView.height
-                                            val originalLp = webView.layoutParams
-                                            val originalLayerType = webView.layerType
-                                            val needsResize = svgWidth != originalWidth || svgHeight != originalHeight
-                                            webView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
-                                            val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(svgWidth, android.view.View.MeasureSpec.EXACTLY)
-                                            val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(svgHeight, android.view.View.MeasureSpec.EXACTLY)
-                                            webView.measure(widthSpec, heightSpec)
-                                            webView.layout(0, 0, svgWidth, svgHeight)
-                                            if (needsResize && originalLp != null) {
-                                                originalLp.width = svgWidth
-                                                originalLp.height = svgHeight
-                                                webView.layoutParams = originalLp
-                                            }
-                                            webView.postDelayed({
-                                                try {
-                                                    val maxDimensionPx = 8192
-                                                    val maxPixels = 24_000_000
-                                                    val desiredWidthPx = (svgWidth * devicePixelRatio).toDouble()
-                                                    val desiredHeightPx = (svgHeight * devicePixelRatio).toDouble()
-                                                    val scaleByDim = minOf(1.0, maxDimensionPx.toDouble() / desiredWidthPx, maxDimensionPx.toDouble() / desiredHeightPx)
-                                                    val scaleByArea = kotlin.math.sqrt((maxPixels / (desiredWidthPx * desiredHeightPx)).coerceAtMost(1.0))
-                                                    val outputScale = minOf(1.0, scaleByDim, scaleByArea)
-                                                    val outWidthPx = (desiredWidthPx * outputScale).roundToInt().coerceAtLeast(1)
-                                                    val outHeightPx = (desiredHeightPx * outputScale).roundToInt().coerceAtLeast(1)
-                                                    val bitmap = android.graphics.Bitmap.createBitmap(outWidthPx, outHeightPx, android.graphics.Bitmap.Config.ARGB_8888)
-                                                    val canvas = android.graphics.Canvas(bitmap)
-                                                    val canvasScale = (outWidthPx.toFloat() / svgWidth.toFloat())
-                                                    if (canvasScale != 1f) canvas.scale(canvasScale, canvasScale)
-                                                    canvas.drawColor(android.graphics.Color.WHITE)
-                                                    try { webView.isVerticalScrollBarEnabled = false } catch (_: Exception) {}
-                                                    try { webView.isHorizontalScrollBarEnabled = false } catch (_: Exception) {}
-                                                    try { webView.evaluateJavascript("document.body.style.background='transparent'", null) } catch (_: Exception) {}
-                                                    webView.draw(canvas)
-                                                    if (needsResize) {
-                                                        if (originalLp != null) {
-                                                            originalLp.width = originalWidth
-                                                            originalLp.height = originalHeight
-                                                            webView.layoutParams = originalLp
-                                                        }
-                                                        val origWidthSpec = android.view.View.MeasureSpec.makeMeasureSpec(originalWidth, android.view.View.MeasureSpec.EXACTLY)
-                                                        val origHeightSpec = android.view.View.MeasureSpec.makeMeasureSpec(originalHeight, android.view.View.MeasureSpec.EXACTLY)
-                                                        webView.measure(origWidthSpec, origHeightSpec)
-                                                        webView.layout(0, 0, originalWidth, originalHeight)
-                                                    }
-                                                    webView.setLayerType(originalLayerType, null)
-                                                    webView.evaluateJavascript("setScale(" + currentScale + ");", null)
-                                                    val outputStream = java.io.ByteArrayOutputStream()
-                                                    val compressed = bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, outputStream)
-                                                    if (compressed) {
-                                                        val pngData = outputStream.toByteArray()
-                                                        outputStream.close()
-                                                        bitmap.recycle()
-                                                        callback(pngData)
-                                                    } else {
-                                                        outputStream.close()
-                                                        bitmap.recycle()
-                                                        callback(null)
-                                                    }
-                                                } catch (e: Exception) {
-                                                    try {
-                                                        if (needsResize) {
-                                                            if (originalLp != null) {
-                                                                originalLp.width = originalWidth
-                                                                originalLp.height = originalHeight
-                                                                webView.layoutParams = originalLp
-                                                            }
-                                                            val origWidthSpec = android.view.View.MeasureSpec.makeMeasureSpec(originalWidth, android.view.View.MeasureSpec.EXACTLY)
-                                                            val origHeightSpec = android.view.View.MeasureSpec.makeMeasureSpec(originalHeight, android.view.View.MeasureSpec.EXACTLY)
-                                                            webView.measure(origWidthSpec, origHeightSpec)
-                                                            webView.layout(0, 0, originalWidth, originalHeight)
-                                                        }
-                                                    } catch (_: Exception) {}
-                                                    try { webView.setLayerType(originalLayerType, null) } catch (_: Exception) {}
-                                                    webView.evaluateJavascript("setScale(" + currentScale + ");", null)
-                                                    callback(null)
-                                                }
-                                            }, 100)
-                                        } catch (e: Exception) {
-                                            webView.evaluateJavascript("setScale(" + currentScale + ");", null)
-                                            callback(null)
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    webView.evaluateJavascript("setScale(" + currentScale + ");", null)
-                                    callback(null)
-                                }
-                            }, 100)
-                        }
-                    } catch (e: Exception) {
-                        callback(null)
-                    }
-                }
-            } catch (e: Exception) {
-                callback(null)
             }
         } ?: run {
+            Log.e("MermaidPreview", "WebView is null for PNG capture")
             callback(null)
         }
     }
 
     private fun renderSvgToPng(svgContent: String): ByteArray? {
         return try {
+            // Check available memory before creating large bitmaps
+            if (!MemoryUtils.checkMemoryAvailability()) {
+                Log.w("MermaidPreview", "Insufficient memory for SVG-to-PNG conversion")
+                return null
+            }
 
             val decoded = svgContent.decodeUnicodeEscapes()
             val svg = com.caverock.androidsvg.SVG.getFromString(decoded)
@@ -437,6 +283,14 @@ class MermaidPreviewState {
             outWidth = canvasWidth.coerceAtLeast(1f).coerceAtMost(8000f)
             outHeight = canvasHeight.coerceAtLeast(1f).coerceAtMost(8000f)
             
+            // Validate bitmap size before creation
+            val totalPixels = (outWidth * outHeight).toLong()
+            val maxPixels = 24_000_000L
+            if (totalPixels > maxPixels) {
+                Log.w("MermaidPreview", "SVG too large for bitmap: $totalPixels pixels (max: $maxPixels)")
+                return null
+            }
+            
             val bitmap = android.graphics.Bitmap.createBitmap(outWidth.toInt(), outHeight.toInt(), android.graphics.Bitmap.Config.ARGB_8888)
             val canvas = android.graphics.Canvas(bitmap)
             canvas.drawColor(android.graphics.Color.WHITE)
@@ -459,6 +313,7 @@ class MermaidPreviewState {
             null
         }
     }
+
 
     private fun String.decodeUnicodeEscapes(): String {
         val input = this
