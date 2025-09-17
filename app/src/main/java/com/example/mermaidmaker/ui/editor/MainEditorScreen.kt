@@ -1,6 +1,11 @@
 package com.example.mermaidmaker.ui.editor
 
 import android.annotation.SuppressLint
+import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.BorderStroke
@@ -20,6 +25,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material3.Button
@@ -59,6 +66,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.ui.preview.rememberMermaidPreviewState
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +74,7 @@ fun MainEditorScreen(
     diagramId: String? = null,
     viewModel: MermaidEditorViewModel = koinViewModel()
 ) {
+    val fileExportService: com.example.mermaidmaker.domain.service.FileExportService = koinInject()
     var selectedTabIndex by remember { mutableStateOf(1) } // Start with "Code" tab
     var showExampleDialog by remember { mutableStateOf(false) }
     var showFontSizeDialog by remember { mutableStateOf(false) }
@@ -127,7 +136,7 @@ fun MainEditorScreen(
             shadowElevation = 2.dp
         ) {
             Text(
-                text = "AI Mermaid",
+                text = "Mermaid Maker",
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.SemiBold
                 ),
@@ -193,7 +202,8 @@ fun MainEditorScreen(
                 }
                 3 -> PreviewTab(
                     content = editorContent,
-                    previewState = previewState
+                    previewState = previewState,
+                    fileExportService = fileExportService
                 )
             }
         }
@@ -323,58 +333,6 @@ private fun CodeTab(
 }
 
 
-
-@Composable
-private fun ExampleTab(
-    selectedDiagramType: DiagramType,
-    availableTemplates: List<com.example.mermaidmaker.domain.model.Template>,
-    onDiagramTypeSelected: (DiagramType) -> Unit,
-    onTemplateSelected: (com.example.mermaidmaker.domain.model.Template) -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(
-                "Choose Diagram Type",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-
-        // Diagram type selection
-        items(DiagramType.values().toList()) { diagramType ->
-            DiagramTypeCard(
-                diagramType = diagramType,
-                isSelected = selectedDiagramType == diagramType,
-                onClick = { onDiagramTypeSelected(diagramType) }
-            )
-        }
-
-        // Show templates for selected type
-        if (availableTemplates.isNotEmpty()) {
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "Templates for ${selectedDiagramType.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-
-            items(availableTemplates) { template ->
-                TemplateCard(
-                    template = template,
-                    onClick = { onTemplateSelected(template) }
-                )
-            }
-        }
-    }
-}
-
 @Composable
 private fun DiagramTypeCard(
     diagramType: DiagramType,
@@ -431,47 +389,17 @@ private fun DiagramTypeCard(
 }
 
 @Composable
-private fun TemplateCard(
-    template: com.example.mermaidmaker.domain.model.Template,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = template.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = template.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
 private fun PreviewTab(
     content: String,
-    @Suppress("UNUSED_PARAMETER") previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState
+    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
+    fileExportService: com.example.mermaidmaker.domain.service.FileExportService
 ) {
     var zoomLevel by remember { mutableStateOf(100) }
     
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Compact preview header with zoom controls and return button
+
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -481,19 +409,27 @@ private fun PreviewTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.Start,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Zoom controls
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { zoomLevel = (zoomLevel - 25).coerceAtLeast(50) }) {
+                    IconButton(onClick = { 
+                        zoomLevel = (zoomLevel - 25).coerceAtLeast(50)
+                        // Also update the hidden previewState for export
+                        previewState.setZoom(zoomLevel / 100f)
+                    }) {
                         androidx.compose.foundation.Image(
                             painter = rememberVectorPainter(image = Icons.Filled.ZoomOut),
                             contentDescription = "Zoom out"
                         )
                     }
                     Spacer(Modifier.width(4.dp))
-                    IconButton(onClick = { zoomLevel = (zoomLevel + 25).coerceAtMost(200) }) {
+                    IconButton(onClick = { 
+                        zoomLevel = (zoomLevel + 25).coerceAtMost(200) 
+                        // Also update the hidden previewState for export
+                        previewState.setZoom(zoomLevel / 100f)
+                    }) {
                         androidx.compose.foundation.Image(
                             painter = rememberVectorPainter(image = Icons.Filled.ZoomIn),
                             contentDescription = "Zoom in"
@@ -501,13 +437,54 @@ private fun PreviewTab(
                     }
                 }
                 
-                // No return button
+                // Export/Share controls
+                if (content.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // PNG Download
+                        IconButton(
+                            onClick = {
+                                Log.d("MainEditorScreen", "PNG Download button clicked")
+                                previewState.exportPNG(
+                                    fileName = "mermaid_diagram.png",
+                                    fileExportService = fileExportService
+                                ) { success ->
+                                    Log.d("MainEditorScreen", "PNG download result: $success")
+                                }
+                            }
+                        ) {
+                            androidx.compose.foundation.Image(
+                                painter = rememberVectorPainter(image = Icons.Filled.FileDownload),
+                                contentDescription = "Download PNG"
+                            )
+                        }
+                        
+                        Spacer(Modifier.width(8.dp))
+                        
+                        // PNG Share  
+                        IconButton(
+                            onClick = {
+                                Log.d("MainEditorScreen", "PNG Share button clicked")
+                                previewState.sharePNG(
+                                    fileName = "mermaid_diagram.png",
+                                    fileExportService = fileExportService
+                                ) { success ->
+                                    Log.d("MainEditorScreen", "PNG share result: $success")
+                                }
+                            }
+                        ) {
+                            androidx.compose.foundation.Image(
+                                painter = rememberVectorPainter(image = Icons.Filled.Share),
+                                contentDescription = "Share PNG"
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        // Preview content - now takes full available space
         Box(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
         ) {
             if (content.isBlank()) {
                 Column(
@@ -528,12 +505,17 @@ private fun PreviewTab(
                     )
                 }
             } else {
-                // Custom fullscreen preview without any containers or padding
-                FullScreenMermaidPreview(
-                    content = content,
-                    zoomLevel = zoomLevel,
-                    modifier = Modifier.fillMaxSize()
-                )
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                ) {
+                    FullScreenMermaidPreview(
+                        content = content,
+                        zoomLevel = zoomLevel,
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        previewState = previewState
+                    )
+                }
             }
         }
     }
@@ -576,8 +558,8 @@ private fun BottomControlsSection(
             Text("|", color = MaterialTheme.colorScheme.onSurfaceVariant)
             
             TextButton(onClick = { 
-                viewModel.pasteFromClipboard(context)
-                editorState.setContent(viewModel.editorContent.value)
+                val updatedContent = viewModel.pasteFromClipboard(context)
+                editorState.setContent(updatedContent)
             }) {
                 Text("paste")
             }
@@ -605,7 +587,8 @@ private fun BottomControlsSection(
 private fun FullScreenMermaidPreview(
     content: String,
     zoomLevel: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     var isReady by remember { mutableStateOf(false) }
@@ -615,12 +598,17 @@ private fun FullScreenMermaidPreview(
         factory = { context ->
             val newWebView = WebView(context)
             webView = newWebView
-            setupFullScreenWebView(newWebView) { isReady = true }
+            setupFullScreenWebView(newWebView) { 
+                isReady = true
+
+                previewState?.setWebView(newWebView)
+                previewState?.setReady(true)
+            }
             newWebView
         },
         update = { webView ->
             if (isReady) {
-                // Apply zoom level
+
                 val scale = zoomLevel / 100f
                 webView.evaluateJavascript("setScale($scale);", null)
             }
@@ -631,8 +619,11 @@ private fun FullScreenMermaidPreview(
     LaunchedEffect(content, isReady) {
         if (isReady && content.isNotBlank()) {
             webView?.evaluateJavascript("renderMermaid(`${content.escapeForJs()}`);", null)
+            // Also update previewState for export functionality
+            previewState?.renderDiagram(content, debounced = false)
         } else if (isReady && content.isBlank()) {
             webView?.evaluateJavascript("clearPreview();", null)
+            previewState?.clearPreview()
         }
     }
     
@@ -648,6 +639,7 @@ private fun FullScreenMermaidPreview(
 @SuppressLint("SetJavaScriptEnabled")
 private fun setupFullScreenWebView(webView: WebView, onReady: () -> Unit) {
     webView.apply {
+        setBackgroundColor(android.graphics.Color.TRANSPARENT)
         settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -661,9 +653,10 @@ private fun setupFullScreenWebView(webView: WebView, onReady: () -> Unit) {
             safeBrowsingEnabled = true
             textZoom = 100
             minimumFontSize = 12
+            cacheMode = WebSettings.LOAD_NO_CACHE
         }
         
-        // JavaScript interface
+        // JavaScript interface - compatible with MermaidPreview
         val jsInterface = object {
             @android.webkit.JavascriptInterface
             fun onWebViewReady() {
@@ -671,32 +664,46 @@ private fun setupFullScreenWebView(webView: WebView, onReady: () -> Unit) {
             }
             
             @android.webkit.JavascriptInterface
-            fun onRenderSuccess(@Suppress("UNUSED_PARAMETER") svgLength: Int) {
-                // Success handled silently
+            fun onRenderSuccess(svgLength: Int) {
+                Log.d("FullScreenMermaidPreview", "Render success: $svgLength characters")
             }
             
             @android.webkit.JavascriptInterface
-            fun onRenderError(@Suppress("UNUSED_PARAMETER") error: String) {
-                // Errors handled silently
+            fun onRenderError(error: String) {
+                Log.e("FullScreenMermaidPreview", "Render error: $error")
             }
         }
         
         addJavascriptInterface(jsInterface, "Android")
         
         webViewClient = object : WebViewClient() {
-            @Deprecated("Deprecated in API level 24")
-            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                return url?.startsWith("file:///android_asset/")?.not() ?: false
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url?.toString() ?: return false
+                // Only allow file:///android_asset/ URLs
+                return !(url as String).startsWith("file:///android_asset/")
             }
             
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 // WebView ready callback will be called from JavaScript
             }
+            
+            @Deprecated("Deprecated in API level 24")
+            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                super.onReceivedError(view, errorCode, description, failingUrl)
+                Log.e("FullScreenMermaidPreview", "WebView error: $errorCode - $description")
+            }
         }
         
-        // Load the custom fullscreen HTML
-        loadUrl("file:///android_asset/mermaid_preview_fullscreen.html")
+        webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                Log.d("FullScreenMermaidPreview", "Console: ${consoleMessage.message()} at ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}")
+                return true
+            }
+        }
+        
+        // Use the same HTML as regular preview for consistent functionality
+        loadUrl("file:///android_asset/mermaid_preview.html")
     }
 }
 

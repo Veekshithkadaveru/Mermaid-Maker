@@ -8,13 +8,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.mermaidmaker.util.WebViewPngGenerator
+import com.example.mermaidmaker.util.MemoryUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import kotlin.math.roundToInt
 
 /**
  * State holder for MermaidPreview
@@ -35,6 +40,7 @@ class MermaidPreviewState {
     
     private var webView: WebView? = null
     private var queuedContent: String? = null
+    private val pngGenerator = WebViewPngGenerator()
     
     internal fun setWebView(webView: WebView) {
         this.webView = webView
@@ -122,23 +128,57 @@ class MermaidPreviewState {
      * Get rendered SVG content
      */
     fun getRenderedSVG(callback: (String?) -> Unit) {
-        webView?.evaluateJavascript("getRenderedSVG();") { result ->
-            // Remove quotes and unescape the result
-            val svg = result?.removeSurrounding("\"")?.unescapeFromJs()
-            callback(svg)
+        webView?.let { webView ->
+            if (!_isReady.value) {
+                Log.e("MermaidPreview", "WebView not ready for SVG extraction")
+                callback(null)
+                return
+            }
+            
+            Log.d("MermaidPreview", "Attempting to get rendered SVG")
+            webView.evaluateJavascript("getRenderedSVG();") { result ->
+                Log.d("MermaidPreview", "SVG result from WebView: $result")
+                
+                if (result == null || result == "null" || result.isEmpty()) {
+                    Log.e("MermaidPreview", "No SVG content returned from WebView")
+                    callback(null)
+                    return@evaluateJavascript
+                }
+                
+                // Remove quotes and unescape the result
+                val svg = result.removeSurrounding("\"").unescapeFromJs()
+                Log.d("MermaidPreview", "Processed SVG length: ${svg.length}")
+                
+                if (svg.isBlank()) {
+                    Log.e("MermaidPreview", "SVG content is blank after processing")
+                    callback(null)
+                } else {
+                    callback(svg)
+                }
+            }
+        } ?: run {
+            Log.e("MermaidPreview", "WebView is null for SVG extraction")
+            callback(null)
         }
     }
 
     /**
-     * Export rendered SVG using Storage Access Framework
+     * Export rendered SVG using FileExportService
      */
-    fun exportSVG(fileName: String = "diagram.svg", onResult: (Boolean) -> Unit) {
+    fun exportSVG(
+        fileName: String = "diagram.svg", 
+        fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
+        onResult: (Boolean) -> Unit
+    ) {
         getRenderedSVG { svg ->
             if (svg != null && svg.isNotBlank()) {
-                // This would integrate with the FileExportService
-                // For now, just log success
-                Log.d("MermaidPreview", "SVG ready for export: ${svg.length} characters")
-                onResult(true)
+                CoroutineScope(Dispatchers.Main).launch {
+                    fileExportService.exportSvg(svg, fileName) { uri ->
+                        val success = uri != null
+                        Log.d("MermaidPreview", if (success) "SVG exported successfully to: $uri" else "SVG export failed")
+                        onResult(success)
+                    }
+                }
             } else {
                 Log.e("MermaidPreview", "No SVG content available for export")
                 onResult(false)
@@ -147,17 +187,210 @@ class MermaidPreviewState {
     }
 
     /**
-     * Share rendered SVG
+     * Share rendered SVG using FileExportService
      */
-    fun shareSVG(fileName: String = "diagram.svg", onResult: (Boolean) -> Unit) {
+    fun shareSVG(
+        fileName: String = "diagram.svg",
+        fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
+        onResult: (Boolean) -> Unit
+    ) {
         getRenderedSVG { svg ->
             if (svg != null && svg.isNotBlank()) {
-                // This would integrate with the FileExportService
-                // For now, just log success
-                Log.d("MermaidPreview", "SVG ready for sharing: ${svg.length} characters")
-                onResult(true)
+                CoroutineScope(Dispatchers.Main).launch {
+                    val success = fileExportService.shareSvg(svg, fileName)
+                    Log.d("MermaidPreview", if (success) "SVG share initiated successfully" else "SVG share failed")
+                    onResult(success)
+                }
             } else {
                 Log.e("MermaidPreview", "No SVG content available for sharing")
+                onResult(false)
+            }
+        }
+    }
+
+    /**
+     * Generate PNG from rendered diagram using WebView screenshot
+     */
+    fun generatePNG(callback: (ByteArray?) -> Unit) {
+        // First try to render directly from SVG for reliability
+        getRenderedSVG { svgContent ->
+            var completed = false
+            if (!svgContent.isNullOrBlank()) {
+                try {
+                    val png = renderSvgToPng(svgContent)
+                    if (png != null && png.isNotEmpty()) {
+                        callback(png)
+                        completed = true
+                    } else {
+                        Log.w("MermaidPreview", "SVG->PNG renderer returned empty; falling back to WebView capture")
+                    }
+                } catch (e: Exception) {
+                    Log.w("MermaidPreview", "SVG->PNG renderer failed; falling back to WebView capture", e)
+                }
+            }
+            if (!completed) {
+                capturePngViaWebView(callback)
+            }
+        }
+    }
+
+    private fun capturePngViaWebView(callback: (ByteArray?) -> Unit) {
+        webView?.let { webView ->
+            CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    val result = pngGenerator.generatePng(webView, _isReady.value)
+                    callback(result)
+                } catch (e: Exception) {
+                    Log.e("MermaidPreview", "Error in PNG generation via utility", e)
+                    callback(null)
+                }
+            }
+        } ?: run {
+            Log.e("MermaidPreview", "WebView is null for PNG capture")
+            callback(null)
+        }
+    }
+
+    private fun renderSvgToPng(svgContent: String): ByteArray? {
+        return try {
+            // Check available memory before creating large bitmaps
+            if (!MemoryUtils.checkMemoryAvailability()) {
+                Log.w("MermaidPreview", "Insufficient memory for SVG-to-PNG conversion")
+                return null
+            }
+
+            val decoded = svgContent.decodeUnicodeEscapes()
+            val svg = com.caverock.androidsvg.SVG.getFromString(decoded)
+            val viewBox = try { svg.documentViewBox } catch (_: Exception) { null }
+            var outWidth = try { svg.documentWidth } catch (_: Exception) { 0f }
+            var outHeight = try { svg.documentHeight } catch (_: Exception) { 0f }
+
+            if (outWidth <= 0f || outHeight <= 0f) {
+                if (viewBox != null) {
+                    outWidth = viewBox.width()
+                    outHeight = viewBox.height()
+                } else {
+                    outWidth = 1024f
+                    outHeight = 768f
+                }
+            }
+            
+            // Add padding for centering - consistent with WebView approach
+            val padding = 32f // 8px internal + 24px external margin
+            val canvasWidth = outWidth + padding * 2
+            val canvasHeight = outHeight + padding * 2
+            
+            outWidth = canvasWidth.coerceAtLeast(1f).coerceAtMost(8000f)
+            outHeight = canvasHeight.coerceAtLeast(1f).coerceAtMost(8000f)
+            
+            // Validate bitmap size before creation
+            val totalPixels = (outWidth * outHeight).toLong()
+            val maxPixels = 24_000_000L
+            if (totalPixels > maxPixels) {
+                Log.w("MermaidPreview", "SVG too large for bitmap: $totalPixels pixels (max: $maxPixels)")
+                return null
+            }
+            
+            val bitmap = android.graphics.Bitmap.createBitmap(outWidth.toInt(), outHeight.toInt(), android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            canvas.drawColor(android.graphics.Color.WHITE)
+            
+
+            canvas.translate(padding, padding)
+
+            try { svg.setDocumentWidth(outWidth - padding * 2) } catch (_: Exception) {}
+            try { svg.setDocumentHeight(outHeight - padding * 2) } catch (_: Exception) {}
+            
+            svg.renderToCanvas(canvas)
+            val os = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, os)
+            val bytes = os.toByteArray()
+            os.close()
+            bitmap.recycle()
+            bytes
+        } catch (e: Exception) {
+            Log.e("MermaidPreview", "renderSvgToPng failed", e)
+            null
+        }
+    }
+
+
+    private fun String.decodeUnicodeEscapes(): String {
+        val input = this
+        val builder = StringBuilder(input.length)
+        var i = 0
+        while (i < input.length) {
+            val ch = input[i]
+            if (ch == '\\') {
+
+                var j = i
+                while (j < input.length && input[j] == '\\') j++
+                val backslashCount = j - i
+                val nextIsU = (j < input.length && input[j] == 'u')
+                if (nextIsU && j + 4 < input.length) {
+                    val hex = input.substring(j + 1, j + 5)
+                    val code = hex.toIntOrNull(16)
+                    if (code != null) {
+
+                        val emitBackslashes = (backslashCount - 1).coerceAtLeast(0) / 2
+                        repeat(emitBackslashes) { builder.append('\\') }
+                        builder.append(code.toChar())
+                        i = j + 5
+                        continue
+                    }
+                }
+
+                repeat(backslashCount) { builder.append('\\') }
+                i = j
+                continue
+            }
+            builder.append(ch)
+            i++
+        }
+        return builder.toString()
+    }
+
+    /**
+     * Export rendered diagram as PNG
+     */
+    fun exportPNG(
+        fileName: String = "diagram.png",
+        fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
+        onResult: (Boolean) -> Unit
+    ) {
+        generatePNG { pngData ->
+            if (pngData != null && pngData.isNotEmpty()) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    fileExportService.exportPng(pngData, fileName) { uri ->
+                        val success = uri != null
+                        Log.d("MermaidPreview", if (success) "PNG exported successfully to: $uri" else "PNG export failed")
+                        onResult(success)
+                    }
+                }
+            } else {
+                Log.e("MermaidPreview", "Failed to generate PNG data")
+                onResult(false)
+            }
+        }
+    }
+
+    /**
+     * Share rendered diagram as PNG
+     */
+    fun sharePNG(
+        fileName: String = "diagram.png",
+        fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
+        onResult: (Boolean) -> Unit
+    ) {
+        generatePNG { pngData ->
+            if (pngData != null && pngData.isNotEmpty()) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    val success = fileExportService.sharePng(pngData, fileName)
+                    Log.d("MermaidPreview", if (success) "PNG share initiated successfully" else "PNG share failed")
+                    onResult(success)
+                }
+            } else {
+                Log.e("MermaidPreview", "Failed to generate PNG data for sharing")
                 onResult(false)
             }
         }
@@ -216,7 +449,8 @@ fun MermaidPreview(
     onRenderError: (String) -> Unit = {},
     onRenderSuccess: (Int) -> Unit = {},
     theme: String = "default",
-    showControls: Boolean = false
+    showControls: Boolean = false,
+    zoomLevel: Int = 100
 ) {
 
     val isReady by state.isReady.collectAsState()
@@ -382,6 +616,14 @@ fun MermaidPreview(
             state.setTheme(theme)
         }
     }
+    
+    // Apply zoom when it changes
+    LaunchedEffect(zoomLevel, isReady) {
+        if (isReady) {
+            val scale = zoomLevel / 100f
+            state.setZoom(scale)
+        }
+    }
 }
 
 /**
@@ -395,6 +637,8 @@ private fun setupMermaidPreviewWebView(
     Log.d("MermaidPreview", "Setting up WebView")
     
     webView.apply {
+        // Ensure transparent background to avoid white areas behind SVG
+        setBackgroundColor(android.graphics.Color.TRANSPARENT)
         settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true

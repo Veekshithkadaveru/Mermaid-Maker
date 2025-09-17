@@ -23,8 +23,8 @@ class ExportDiagramUseCaseImpl(
             if (diagram != null) {
                 val fileName = "${diagram.title}.svg"
 
-                val svgContent = generateSvgPlaceholder(diagram.title)
-                fileExportService.exportSvg(svgContent, fileName, onResult)
+                Log.w(TAG, "Direct diagram SVG export requires WebView rendering. Using source export instead.")
+                fileExportService.exportSource(diagram.content, "${diagram.title}.mmd", onResult)
             } else {
                 Log.e(TAG, "Diagram not found: $diagramId")
                 onResult(null)
@@ -67,9 +67,12 @@ class ExportDiagramUseCaseImpl(
         try {
             val diagram = diagramRepository.getDiagramById(diagramId)
             if (diagram != null) {
-                val fileName = "${diagram.title}.svg"
-                val svgContent = generateSvgPlaceholder(diagram.title)
-                fileExportService.shareSvg(svgContent, fileName)
+                val fileName = "${diagram.title}.mmd"
+                
+                Log.w(TAG, "Direct diagram SVG sharing requires WebView rendering. Sharing source instead.")
+
+                val sourceContent = "Mermaid Diagram: ${diagram.title}\n\n${diagram.content}"
+                fileExportService.exportSource(sourceContent, fileName) { /* ignore result for sharing */ }
             } else {
                 Log.e(TAG, "Diagram not found: $diagramId")
             }
@@ -113,17 +116,4 @@ class ExportDiagramUseCaseImpl(
         }
     }
 
-    private fun generateSvgPlaceholder(title: String): String {
-        return """
-            <svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
-                <rect width="400" height="200" fill="#f9f9f9" stroke="#333" stroke-width="2"/>
-                <text x="200" y="100" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#333">
-                    $title
-                </text>
-                <text x="200" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#666">
-                    (Diagram content would be rendered here)
-                </text>
-            </svg>
-        """.trimIndent()
-    }
 }
