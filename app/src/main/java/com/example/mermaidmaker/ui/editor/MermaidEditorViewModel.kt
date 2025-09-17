@@ -312,7 +312,7 @@ class MermaidEditorViewModel(
     /**
      * Paste content from clipboard
      */
-    fun pasteFromClipboard(context: Context) {
+    fun pasteFromClipboard(context: Context): String {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = clipboard.primaryClip
         if (clip != null && clip.itemCount > 0) {
@@ -320,13 +320,16 @@ class MermaidEditorViewModel(
             val pastedText = item.coerceToText(context)?.toString() ?: ""
             if (pastedText.isNotBlank()) {
                 val current = _editorContent.value
-                _editorContent.value =
-                    if (current.isBlank()) pastedText else current + "\n" + pastedText
+                val newContent = if (current.isBlank()) pastedText else current + "\n" + pastedText
+                _editorContent.value = newContent
+                return newContent
             } else {
                 _errorMessage.value = "Clipboard is empty or not text"
+                return _editorContent.value
             }
         } else {
             _errorMessage.value = "Nothing to paste"
+            return _editorContent.value
         }
     }
 
