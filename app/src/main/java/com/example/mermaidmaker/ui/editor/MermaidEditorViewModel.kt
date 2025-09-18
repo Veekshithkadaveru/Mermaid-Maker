@@ -3,11 +3,13 @@ package com.example.mermaidmaker.ui.editor
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.domain.model.Template
 import com.example.mermaidmaker.domain.repository.DiagramRepository
+import com.example.mermaidmaker.domain.usecase.GenerateAiDiagramUseCase
 import com.example.mermaidmaker.domain.usecase.GetBuiltInTemplatesUseCase
 import com.example.mermaidmaker.domain.usecase.GetTemplatesByTypeUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +24,8 @@ import kotlinx.coroutines.launch
 class MermaidEditorViewModel(
     private val getBuiltInTemplatesUseCase: GetBuiltInTemplatesUseCase,
     private val getTemplatesByTypeUseCase: GetTemplatesByTypeUseCase,
-    private val diagramRepository: DiagramRepository
+    private val diagramRepository: DiagramRepository,
+    private val generateAiDiagramUseCase: GenerateAiDiagramUseCase
 ) : ViewModel() {
 
     private val _editorContent = MutableStateFlow("")
@@ -49,8 +52,19 @@ class MermaidEditorViewModel(
     private val _diagramTitle = MutableStateFlow("")
     val diagramTitle: StateFlow<String> = _diagramTitle.asStateFlow()
 
+    // AI generation state
+    private val _isAiGenerating = MutableStateFlow(false)
+    val isAiGenerating: StateFlow<Boolean> = _isAiGenerating.asStateFlow()
+
+    private val _aiErrorMessage = MutableStateFlow<String?>(null)
+    val aiErrorMessage: StateFlow<String?> = _aiErrorMessage.asStateFlow()
+
+    private val _isAiAvailable = MutableStateFlow(false)
+    val isAiAvailable: StateFlow<Boolean> = _isAiAvailable.asStateFlow()
+
     init {
         loadTemplates()
+        checkAiAvailability()
     }
 
     /**
@@ -187,113 +201,6 @@ class MermaidEditorViewModel(
 
 
     /**
-     * Provide syntax suggestions based on current diagram type
-     */
-    fun getSyntaxSuggestions(): List<String> {
-        return when (_selectedDiagramType.value) {
-            DiagramType.FLOWCHART -> listOf(
-                "graph TD",
-                "graph LR",
-                "A[Rectangle]",
-                "B(Round)",
-                "C{Diamond}",
-                "D((Circle))",
-                "E>Flag]",
-                "F[[Subroutine]]",
-                "G[(Database)]",
-                "A --> B",
-                "B -.-> C",
-                "C ==> D"
-            )
-
-            DiagramType.SEQUENCE -> listOf(
-                "sequenceDiagram",
-                "participant A as Actor",
-                "participant B as Service",
-                "A->>B: Request",
-                "B-->>A: Response",
-                "Note over A,B: Note text",
-                "activate A",
-                "deactivate A",
-                "loop Loop condition",
-                "alt Alternative",
-                "opt Optional"
-            )
-
-            DiagramType.CLASS -> listOf(
-                "classDiagram",
-                "class Animal {",
-                "  +String name",
-                "  +makeSound()",
-                "}",
-                "Animal <|-- Dog",
-                "Animal : +int age",
-                "Animal : +makeSound()",
-                "<<interface>> Animal"
-            )
-
-            DiagramType.STATE -> listOf(
-                "stateDiagram-v2",
-                "[*] --> State1",
-                "State1 --> State2",
-                "State2 --> [*]",
-                "state State1 {",
-                "  [*] --> SubState",
-                "  SubState --> [*]",
-                "}"
-            )
-
-            DiagramType.ER_DIAGRAM -> listOf(
-                "erDiagram",
-                "CUSTOMER {",
-                "  string name",
-                "  string address",
-                "}",
-                "ORDER {",
-                "  int orderNumber",
-                "  date orderDate",
-                "}",
-                "CUSTOMER ||--o{ ORDER : places"
-            )
-
-            DiagramType.JOURNEY -> listOf(
-                "journey",
-                "title User Journey",
-                "section Shopping",
-                "  Browse products: 5: User",
-                "  Add to cart: 3: User",
-                "  Checkout: 1: User, System"
-            )
-
-            DiagramType.GANTT -> listOf(
-                "gantt",
-                "title Project Timeline",
-                "dateFormat YYYY-MM-DD",
-                "section Development",
-                "Design : 2023-01-01, 7d",
-                "Code : after design, 14d"
-            )
-
-            DiagramType.PIE -> listOf(
-                "pie title Survey Results",
-                "\"Satisfied\" : 85",
-                "\"Neutral\" : 10",
-                "\"Dissatisfied\" : 5"
-            )
-
-            DiagramType.GITGRAPH -> listOf(
-                "gitgraph",
-                "commit",
-                "branch feature",
-                "checkout feature",
-                "commit",
-                "checkout main",
-                "merge feature"
-            )
-        }
-    }
-
-    /**
      * Clear the editor content
      */
     fun clearContent() {
@@ -330,24 +237,6 @@ class MermaidEditorViewModel(
         } else {
             _errorMessage.value = "Nothing to paste"
             return _editorContent.value
-        }
-    }
-
-    /**
-     * Increase font size
-     */
-    fun increaseFontSize() {
-        if (_fontSize.value < 24) {
-            _fontSize.value += 2
-        }
-    }
-
-    /**
-     * Decrease font size
-     */
-    fun decreaseFontSize() {
-        if (_fontSize.value > 10) {
-            _fontSize.value -= 2
         }
     }
 
@@ -477,5 +366,63 @@ class MermaidEditorViewModel(
                     commit id: "Release"
             """.trimIndent()
         }
+    }
+
+    /**
+     * Check if AI generation is available (has configured API keys)
+     */
+    private fun checkAiAvailability() {
+        viewModelScope.launch {
+            try {
+                val isAvailable = generateAiDiagramUseCase.isAiGenerationAvailable()
+                val providers = generateAiDiagramUseCase.getConfiguredProviders()
+                Log.d("MermaidEditorViewModel", "AI Available: $isAvailable, Providers: $providers")
+                _isAiAvailable.value = isAvailable
+            } catch (e: Exception) {
+                Log.e("MermaidEditorViewModel", "Error checking AI availability", e)
+                _isAiAvailable.value = false
+            }
+        }
+    }
+
+    /**
+     * Generate diagram from AI using natural language description
+     */
+    fun generateAiDiagram(prompt: String, diagramType: DiagramType) {
+        viewModelScope.launch {
+            try {
+                _isAiGenerating.value = true
+                _aiErrorMessage.value = null
+
+                val result = generateAiDiagramUseCase(
+                    prompt = prompt,
+                    diagramType = diagramType.name,
+                    provider = null // Use first available provider
+                )
+
+                if (result.isSuccess) {
+                    val mermaidCode = result.getOrThrow()
+                    Log.d("MermaidEditorViewModel", "Generated mermaid code: $mermaidCode")
+                    _editorContent.value = mermaidCode
+                    _selectedDiagramType.value = diagramType
+                    Log.d("MermaidEditorViewModel", "Updated editor content successfully")
+                } else {
+                    val errorMsg = result.exceptionOrNull()?.message ?: "Failed to generate diagram"
+                    Log.e("MermaidEditorViewModel", "AI generation failed: $errorMsg")
+                    _aiErrorMessage.value = errorMsg
+                }
+            } catch (e: Exception) {
+                _aiErrorMessage.value = "Unexpected error: ${e.message}"
+            } finally {
+                _isAiGenerating.value = false
+            }
+        }
+    }
+
+    /**
+     * Refresh AI availability status
+     */
+    fun refreshAiAvailability() {
+        checkAiAvailability()
     }
 }
