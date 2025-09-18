@@ -64,6 +64,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.mermaidmaker.domain.model.DiagramType
+import com.example.mermaidmaker.ui.ai.AiGenerationTab
 import com.example.mermaidmaker.ui.preview.rememberMermaidPreviewState
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -84,9 +85,12 @@ fun MainEditorScreen(
     val fontSize by viewModel.fontSize.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
-    
+    val isAiGenerating by viewModel.isAiGenerating.collectAsState()
+    val aiErrorMessage by viewModel.aiErrorMessage.collectAsState()
+    val isAiAvailable by viewModel.isAiAvailable.collectAsState()
+
     val context = LocalContext.current
-    
+
     val previewState = rememberMermaidPreviewState()
     val editorState = rememberMermaidEditorState(
         initialContent = editorContent
@@ -127,71 +131,99 @@ fun MainEditorScreen(
         }
     }
 
+    // Refresh AI availability when screen is resumed
+    LaunchedEffect(Unit) {
+        viewModel.refreshAiAvailability()
+    }
+
+    // Auto-navigate to Code tab when AI generation completes successfully
+    LaunchedEffect(isAiGenerating) {
+        if (!isAiGenerating && editorContent.isNotBlank() && selectedTabIndex == 0) {
+            selectedTabIndex = 1 // Switch to Code tab
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-        // Compact Top App Bar
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            shadowElevation = 2.dp
-        ) {
-            Text(
-                text = "Mermaid Maker",
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.SemiBold
-                ),
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-
-        // Tab Row
-        TabRow(
-            selectedTabIndex = selectedTabIndex,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTabIndex == index,
-                    onClick = { 
-                        if (title == "example") {
-                            showExampleDialog = true
-                        } else {
-                            selectedTabIndex = index
-                        }
-                    },
-                    text = { 
-                        Text(
-                            title,
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal
-                            )
-                        ) 
-                    }
+            // Compact Top App Bar
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shadowElevation = 2.dp
+            ) {
+                Text(
+                    text = "Mermaid Maker",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
-        }
 
-        // Tab Content
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .weight(1f)
-        ) {
-            when (selectedTabIndex) {
-                0 -> TextTab()
-                1 -> CodeTab(
-                    content = editorContent,
-                    fontSize = fontSize,
-                    onContentChanged = { content ->
-                        viewModel.updateContent(content)
-                        editorState.setContent(content)
+            // Tab Row
+            TabRow(
+                selectedTabIndex = selectedTabIndex,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTabIndex == index,
+                        onClick = {
+                            if (title == "example") {
+                                showExampleDialog = true
+                            } else {
+                                selectedTabIndex = index
+                            }
+                        },
+                        text = {
+                            Text(
+                                title,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal
+                                )
+                            )
+                        }
+                    )
+                }
+            }
+
+            // Tab Content
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+            ) {
+                when (selectedTabIndex) {
+                    0 -> {
+                        // Refresh AI availability when Text tab is selected
+                        LaunchedEffect(selectedTabIndex) {
+                            if (selectedTabIndex == 0) {
+                                viewModel.refreshAiAvailability()
+                            }
+                        }
+
+
+                        AiGenerationTab(
+                            selectedDiagramType = selectedDiagramType,
+                            onDiagramTypeSelected = { viewModel.setDiagramType(it) },
+                            onGenerateClick = { prompt, diagramType ->
+                                viewModel.generateAiDiagram(prompt, diagramType)
+                            },
+                            onSettingsClick = {
+                                // TODO: Navigate to settings
+                            },
+                            onRefreshClick = {
+                                viewModel.refreshAiAvailability()
+                            },
+                            isGenerating = isAiGenerating,
+                            errorMessage = aiErrorMessage,
+                            isAiAvailable = isAiAvailable
+                        )
                     }
-                )
-                2 -> {
-                    // Show code content when example tab is "selected" but dialog handles the actual selection
-                    CodeTab(
+
+                    1 -> CodeTab(
                         content = editorContent,
                         fontSize = fontSize,
                         onContentChanged = { content ->
@@ -199,59 +231,71 @@ fun MainEditorScreen(
                             editorState.setContent(content)
                         }
                     )
+
+                    2 -> {
+                        // Show code content when example tab is "selected" but dialog handles the actual selection
+                        CodeTab(
+                            content = editorContent,
+                            fontSize = fontSize,
+                            onContentChanged = { content ->
+                                viewModel.updateContent(content)
+                                editorState.setContent(content)
+                            }
+                        )
+                    }
+
+                    3 -> PreviewTab(
+                        content = editorContent,
+                        previewState = previewState,
+                        fileExportService = fileExportService
+                    )
                 }
-                3 -> PreviewTab(
-                    content = editorContent,
-                    previewState = previewState,
-                    fileExportService = fileExportService
+            }
+
+            // Bottom controls section - only show for Code tab
+            if (selectedTabIndex == 1) { // Code tab
+                BottomControlsSection(
+                    viewModel = viewModel,
+                    context = context,
+                    editorState = editorState,
+                    onFontSizeClick = { showFontSizeDialog = true }
                 )
             }
         }
 
-        // Bottom controls section - only show for Code tab
-        if (selectedTabIndex == 1) { // Code tab
-            BottomControlsSection(
-                viewModel = viewModel,
-                context = context,
-                editorState = editorState,
-                onFontSizeClick = { showFontSizeDialog = true }
+        // Example Dialog
+        if (showExampleDialog) {
+            ExampleSelectionDialog(
+                selectedDiagramType = selectedDiagramType,
+                availableTemplates = availableTemplates,
+                onDiagramTypeSelected = { type ->
+                    viewModel.setDiagramType(type)
+                    val template = viewModel.generateBasicTemplate()
+                    viewModel.updateContent(template)
+                    editorState.setContent(template)
+                    selectedTabIndex = 1 // Switch to Code tab
+                },
+                onTemplateSelected = { template ->
+                    viewModel.updateContent(template.content)
+                    editorState.setContent(template.content)
+                    selectedTabIndex = 1 // Switch to Code tab
+                    showExampleDialog = false
+                },
+                onDismiss = { showExampleDialog = false }
             )
         }
-    }
 
-    // Example Dialog
-    if (showExampleDialog) {
-        ExampleSelectionDialog(
-            selectedDiagramType = selectedDiagramType,
-            availableTemplates = availableTemplates,
-            onDiagramTypeSelected = { type ->
-                viewModel.setDiagramType(type)
-                val template = viewModel.generateBasicTemplate()
-                viewModel.updateContent(template)
-                editorState.setContent(template)
-                selectedTabIndex = 1 // Switch to Code tab
-            },
-            onTemplateSelected = { template ->
-                viewModel.updateContent(template.content)
-                editorState.setContent(template.content)
-                selectedTabIndex = 1 // Switch to Code tab
-                showExampleDialog = false
-            },
-            onDismiss = { showExampleDialog = false }
-        )
-    }
-    
-    // Font Size Dialog
-    if (showFontSizeDialog) {
-        FontSizeSelectionDialog(
-            currentFontSize = fontSize,
-            onFontSizeSelected = { newSize ->
-                viewModel.setFontSize(newSize)
-                showFontSizeDialog = false
-            },
-            onDismiss = { showFontSizeDialog = false }
-        )
-    }
+        // Font Size Dialog
+        if (showFontSizeDialog) {
+            FontSizeSelectionDialog(
+                currentFontSize = fontSize,
+                onFontSizeSelected = { newSize ->
+                    viewModel.setFontSize(newSize)
+                    showFontSizeDialog = false
+                },
+                onDismiss = { showFontSizeDialog = false }
+            )
+        }
 
         // Loading overlay
         if (isLoading) {
@@ -292,31 +336,6 @@ fun MainEditorScreen(
     }
 }
 
-@Composable
-private fun TextTab() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                "Text Mode",
-                style = MaterialTheme.typography.headlineSmall,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Convert natural language to diagrams",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
 
 @Composable
 private fun CodeTab(
@@ -395,7 +414,7 @@ private fun PreviewTab(
     fileExportService: com.example.mermaidmaker.domain.service.FileExportService
 ) {
     var zoomLevel by remember { mutableStateOf(100) }
-    
+
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -414,7 +433,7 @@ private fun PreviewTab(
             ) {
                 // Zoom controls
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { 
+                    IconButton(onClick = {
                         zoomLevel = (zoomLevel - 25).coerceAtLeast(50)
                         // Also update the hidden previewState for export
                         previewState.setZoom(zoomLevel / 100f)
@@ -425,8 +444,8 @@ private fun PreviewTab(
                         )
                     }
                     Spacer(Modifier.width(4.dp))
-                    IconButton(onClick = { 
-                        zoomLevel = (zoomLevel + 25).coerceAtMost(200) 
+                    IconButton(onClick = {
+                        zoomLevel = (zoomLevel + 25).coerceAtMost(200)
                         // Also update the hidden previewState for export
                         previewState.setZoom(zoomLevel / 100f)
                     }) {
@@ -436,7 +455,7 @@ private fun PreviewTab(
                         )
                     }
                 }
-                
+
                 // Export/Share controls
                 if (content.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -457,9 +476,9 @@ private fun PreviewTab(
                                 contentDescription = "Download PNG"
                             )
                         }
-                        
+
                         Spacer(Modifier.width(8.dp))
-                        
+
                         // PNG Share  
                         IconButton(
                             onClick = {
@@ -505,8 +524,9 @@ private fun PreviewTab(
                     )
                 }
             } else {
-                Box(modifier = Modifier
-                    .fillMaxSize()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
                 ) {
                     FullScreenMermaidPreview(
                         content = content,
@@ -540,32 +560,32 @@ private fun BottomControlsSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = { 
+            TextButton(onClick = {
                 viewModel.clearContent()
                 editorState.clear()
             }) {
                 Text("clear")
             }
-            
+
             Text("|", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            
-            TextButton(onClick = { 
+
+            TextButton(onClick = {
                 viewModel.copyToClipboard(context)
             }) {
                 Text("copy")
             }
-            
+
             Text("|", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            
-            TextButton(onClick = { 
+
+            TextButton(onClick = {
                 val updatedContent = viewModel.pasteFromClipboard(context)
                 editorState.setContent(updatedContent)
             }) {
                 Text("paste")
             }
-            
+
             Spacer(modifier = Modifier.weight(1f))
-            
+
             TextButton(
                 onClick = onFontSizeClick,
                 colors = ButtonDefaults.textButtonColors(
@@ -582,7 +602,6 @@ private fun BottomControlsSection(
 }
 
 
-
 @Composable
 private fun FullScreenMermaidPreview(
     content: String,
@@ -592,13 +611,13 @@ private fun FullScreenMermaidPreview(
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     var isReady by remember { mutableStateOf(false) }
-    
+
     AndroidView(
         modifier = modifier,
         factory = { context ->
             val newWebView = WebView(context)
             webView = newWebView
-            setupFullScreenWebView(newWebView) { 
+            setupFullScreenWebView(newWebView) {
                 isReady = true
 
                 previewState?.setWebView(newWebView)
@@ -614,7 +633,7 @@ private fun FullScreenMermaidPreview(
             }
         }
     )
-    
+
     // Render content when it changes
     LaunchedEffect(content, isReady) {
         if (isReady && content.isNotBlank()) {
@@ -626,7 +645,7 @@ private fun FullScreenMermaidPreview(
             previewState?.clearPreview()
         }
     }
-    
+
     // Apply zoom when it changes
     LaunchedEffect(zoomLevel, isReady) {
         if (isReady) {
@@ -655,53 +674,63 @@ private fun setupFullScreenWebView(webView: WebView, onReady: () -> Unit) {
             minimumFontSize = 12
             cacheMode = WebSettings.LOAD_NO_CACHE
         }
-        
+
         // JavaScript interface - compatible with MermaidPreview
         val jsInterface = object {
             @android.webkit.JavascriptInterface
             fun onWebViewReady() {
                 onReady()
             }
-            
+
             @android.webkit.JavascriptInterface
             fun onRenderSuccess(svgLength: Int) {
                 Log.d("FullScreenMermaidPreview", "Render success: $svgLength characters")
             }
-            
+
             @android.webkit.JavascriptInterface
             fun onRenderError(error: String) {
                 Log.e("FullScreenMermaidPreview", "Render error: $error")
             }
         }
-        
+
         addJavascriptInterface(jsInterface, "Android")
-        
+
         webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
                 val url = request?.url?.toString() ?: return false
-                // Only allow file:///android_asset/ URLs
                 return !(url as String).startsWith("file:///android_asset/")
             }
-            
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 // WebView ready callback will be called from JavaScript
             }
-            
+
             @Deprecated("Deprecated in API level 24")
-            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+            override fun onReceivedError(
+                view: WebView?,
+                errorCode: Int,
+                description: String?,
+                failingUrl: String?
+            ) {
                 super.onReceivedError(view, errorCode, description, failingUrl)
                 Log.e("FullScreenMermaidPreview", "WebView error: $errorCode - $description")
             }
         }
-        
+
         webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
-                Log.d("FullScreenMermaidPreview", "Console: ${consoleMessage.message()} at ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}")
+                Log.d(
+                    "FullScreenMermaidPreview",
+                    "Console: ${consoleMessage.message()} at ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}"
+                )
                 return true
             }
         }
-        
+
         // Use the same HTML as regular preview for consistent functionality
         loadUrl("file:///android_asset/mermaid_preview.html")
     }
@@ -785,7 +814,7 @@ private fun ExampleSelectionDialog(
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
-                    
+
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.heightIn(max = 200.dp)
@@ -908,7 +937,7 @@ private fun FontSizeSelectionDialog(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Medium
                     )
-                    
+
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier.size(16.dp)
@@ -920,12 +949,12 @@ private fun FontSizeSelectionDialog(
                         )
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(12.dp))
-                
+
                 // Font size options
                 val fontSizes = listOf(12, 14, 16, 18, 21, 24, 27, 30, 36)
-                
+
                 LazyColumn(
                     modifier = Modifier.heightIn(max = 468.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -982,9 +1011,9 @@ private fun FontSizeOption(
                     unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
-            
+
             Spacer(modifier = Modifier.width(12.dp))
-            
+
             Text(
                 text = "font size $fontSize",
                 style = MaterialTheme.typography.bodyMedium,
