@@ -1,6 +1,16 @@
 package com.example.mermaidmaker.ui.ai
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -37,10 +48,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlin.math.cos
+import kotlin.math.sin
 import com.example.mermaidmaker.domain.model.DiagramType
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -196,7 +217,7 @@ fun AiGenerationTab(
                 enabled = !isGenerating
             )
 
-            // Generate button
+            // Generate button with enhanced loading
             Button(
                 onClick = {
                     if (userPrompt.isNotBlank()) {
@@ -208,22 +229,24 @@ fun AiGenerationTab(
             ) {
                 if (isGenerating) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Generating...")
+                    Spacer(Modifier.width(12.dp))
+                    Text("Generating diagram...")
                 } else {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(12.dp))
                     Text("Generate Diagram")
                 }
             }
+
+            // Note: Full-screen loading overlay is handled in MainEditorScreen
 
             // Error message
             errorMessage?.let { error ->
@@ -375,6 +398,204 @@ private fun getExamplesForDiagramType(diagramType: DiagramType): List<String> {
             "Customer journey from discovery to purchase",
             "User onboarding experience",
             "Support ticket resolution process"
+        )
+    }
+}
+
+@Composable
+private fun ProfessionalLoadingAnimation() {
+    val infiniteTransition = rememberInfiniteTransition(label = "loading")
+    
+    // Multiple sophisticated animation values
+    val rotationAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+    
+    val gradientShift by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "gradient"
+    )
+    
+    val textAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "text_alpha"
+    )
+
+    // Dynamic gradient background
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val tertiaryColor = MaterialTheme.colorScheme.tertiary
+    
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        primaryColor.copy(alpha = 0.1f),
+                        secondaryColor.copy(alpha = 0.15f),
+                        tertiaryColor.copy(alpha = 0.1f)
+                    ),
+                    start = Offset(0f, 0f),
+                    end = Offset(1000f * gradientShift, 500f * gradientShift)
+                )
+            ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(32.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Sophisticated particle animation
+            Box(
+                modifier = Modifier.size(100.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AdvancedLoadingIndicator(
+                    rotationAngle = rotationAngle,
+                    pulseScale = pulseScale,
+                    gradientShift = gradientShift
+                )
+            }
+            
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "🧠 AI Thinking",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.alpha(textAlpha)
+                )
+                Text(
+                    text = "Crafting your perfect diagram...",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.alpha(textAlpha * 0.9f)
+                )
+                Text(
+                    text = "Analyzing • Processing • Generating",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.alpha(textAlpha * 0.8f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdvancedLoadingIndicator(
+    rotationAngle: Float,
+    pulseScale: Float,
+    gradientShift: Float
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val tertiaryColor = MaterialTheme.colorScheme.tertiary
+    
+    Canvas(
+        modifier = Modifier.size(100.dp)
+    ) {
+        val center = Offset(size.width / 2, size.height / 2)
+        val baseRadius = size.minDimension / 6
+        
+        // Outer rotating ring with gradient
+        rotate(rotationAngle, center) {
+            for (i in 0 until 8) {
+                val angle = i * 45f
+                val rad = Math.toRadians(angle.toDouble())
+                val distance = baseRadius * 2.5f * pulseScale
+                val particleCenter = Offset(
+                    center.x + cos(rad).toFloat() * distance,
+                    center.y + sin(rad).toFloat() * distance
+                )
+                
+                val alpha = (sin(Math.toRadians((rotationAngle + angle).toDouble())).toFloat() + 1f) / 2f
+                drawCircle(
+                    color = primaryColor.copy(alpha = alpha * 0.8f),
+                    radius = baseRadius * 0.3f * (1f + alpha * 0.5f),
+                    center = particleCenter
+                )
+            }
+        }
+        
+        // Middle pulsing ring
+        rotate(-rotationAngle * 0.7f, center) {
+            for (i in 0 until 6) {
+                val angle = i * 60f
+                val rad = Math.toRadians(angle.toDouble())
+                val distance = baseRadius * 1.8f
+                val particleCenter = Offset(
+                    center.x + cos(rad).toFloat() * distance,
+                    center.y + sin(rad).toFloat() * distance
+                )
+                
+                drawCircle(
+                    color = secondaryColor.copy(alpha = 0.6f),
+                    radius = baseRadius * 0.25f * pulseScale,
+                    center = particleCenter
+                )
+            }
+        }
+        
+        // Inner core with gradient
+        val gradientColors = listOf(
+            primaryColor.copy(alpha = 0.9f),
+            secondaryColor.copy(alpha = 0.7f),
+            tertiaryColor.copy(alpha = 0.5f)
+        )
+        
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = gradientColors,
+                radius = baseRadius * pulseScale
+            ),
+            radius = baseRadius * pulseScale,
+            center = center
+        )
+        
+        // Central highlight
+        drawCircle(
+            color = Color.White.copy(alpha = 0.3f),
+            radius = baseRadius * 0.4f * pulseScale,
+            center = center
         )
     }
 }
