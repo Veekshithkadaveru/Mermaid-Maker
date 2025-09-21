@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 interface DiagramRepository {
     suspend fun getAllDiagrams(): Flow<List<MermaidDiagram>>
     suspend fun getDiagramById(id: String): MermaidDiagram?
+    suspend fun getMostRecentDiagram(): MermaidDiagram?
     suspend fun insertDiagram(diagram: MermaidDiagram)
     suspend fun updateDiagram(diagram: MermaidDiagram)
     suspend fun deleteDiagram(id: String)

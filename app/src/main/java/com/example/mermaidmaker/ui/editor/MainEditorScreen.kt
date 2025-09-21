@@ -77,6 +77,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.ui.ai.AiGenerationTab
 import com.example.mermaidmaker.ui.preview.rememberMermaidPreviewState
@@ -102,8 +105,11 @@ fun MainEditorScreen(
     val isAiGenerating by viewModel.isAiGenerating.collectAsState()
     val aiErrorMessage by viewModel.aiErrorMessage.collectAsState()
     val isAiAvailable by viewModel.isAiAvailable.collectAsState()
+    val isAutoSaveEnabled by viewModel.isAutoSaveEnabled.collectAsState()
+    val lastAutoSaveTime by viewModel.lastAutoSaveTime.collectAsState()
 
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val previewState = rememberMermaidPreviewState()
     val editorState = rememberMermaidEditorState(
@@ -113,16 +119,13 @@ fun MainEditorScreen(
 
     val tabs = listOf("Text", "Code", "example", "Preview")
 
-    // Initialize with basic template when first loaded or load existing diagram
+    // Initialize with existing diagram if provided; otherwise, rely on ViewModel's recent load
     LaunchedEffect(diagramId) {
         if (diagramId != null) {
-            // Load existing diagram
             viewModel.loadDiagram(diagramId)
-        } else if (editorContent.isEmpty()) {
-            // Create new diagram with basic template
-            val initialTemplate = viewModel.generateBasicTemplate()
-            viewModel.updateContent(initialTemplate)
-            editorState.setContent(initialTemplate)
+        } else if (editorContent.isBlank()) {
+            // If nothing loaded yet, ask ViewModel to load most recent diagram
+            viewModel.loadMostRecent()
         }
     }
 
@@ -130,6 +133,14 @@ fun MainEditorScreen(
     LaunchedEffect(editorContent) {
         if (editorContent.isNotEmpty()) {
             editorState.setContent(editorContent)
+        }
+    }
+
+    // Debounced auto-save: save 2s after typing stops
+    LaunchedEffect(editorContent) {
+        if (editorContent.isNotBlank()) {
+            kotlinx.coroutines.delay(2_000)
+            viewModel.triggerAutoSave()
         }
     }
 
@@ -148,6 +159,19 @@ fun MainEditorScreen(
     // Refresh AI availability when screen is resumed
     LaunchedEffect(Unit) {
         viewModel.refreshAiAvailability()
+    }
+
+    // Trigger auto-save when app goes to background
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                viewModel.triggerAutoSave()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     // Auto-navigate to Code tab when AI generation completes successfully
@@ -200,6 +224,33 @@ fun MainEditorScreen(
                             )
                         }
                     )
+                }
+            }
+
+            // Auto-save Status Bar
+            if (isAutoSaveEnabled && lastAutoSaveTime != null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Auto-save: ON",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Last saved: ${formatAutoSaveTime(lastAutoSaveTime)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
@@ -555,7 +606,7 @@ private fun PreviewTab(
                             .fillMaxSize(),
                         previewState = previewState
                     )
-                    
+
                     // Loading overlay for preview
                     if (isPreviewLoading) {
                         Box(
@@ -712,7 +763,7 @@ private fun FullScreenMermaidPreview(
 
 @SuppressLint("SetJavaScriptEnabled")
 private fun setupFullScreenWebView(
-    webView: WebView, 
+    webView: WebView,
     onReady: () -> Unit,
     previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null
 ) {
@@ -1093,7 +1144,7 @@ private fun FontSizeOption(
 @Composable
 private fun FullScreenAiLoadingOverlay() {
     val infiniteTransition = rememberInfiniteTransition(label = "ai_loading")
-    
+
     // Advanced animation values for full-screen experience
     val rotationAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -1104,7 +1155,7 @@ private fun FullScreenAiLoadingOverlay() {
         ),
         label = "rotation"
     )
-    
+
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 0.8f,
         targetValue = 1.3f,
@@ -1114,7 +1165,7 @@ private fun FullScreenAiLoadingOverlay() {
         ),
         label = "pulse"
     )
-    
+
     val backgroundAlpha by infiniteTransition.animateFloat(
         initialValue = 0.95f,
         targetValue = 0.98f,
@@ -1124,7 +1175,7 @@ private fun FullScreenAiLoadingOverlay() {
         ),
         label = "background_alpha"
     )
-    
+
     val textGlow by infiniteTransition.animateFloat(
         initialValue = 0.6f,
         targetValue = 1f,
@@ -1168,7 +1219,7 @@ private fun FullScreenAiLoadingOverlay() {
                     pulseScale = pulseScale
                 )
             }
-            
+
             // Professional branding and messaging
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -1179,7 +1230,7 @@ private fun FullScreenAiLoadingOverlay() {
                     style = MaterialTheme.typography.displayLarge,
                     modifier = Modifier.alpha(textGlow)
                 )
-                
+
                 Text(
                     text = "AI THINKING",
                     style = MaterialTheme.typography.headlineMedium,
@@ -1188,7 +1239,7 @@ private fun FullScreenAiLoadingOverlay() {
                     letterSpacing = 4.sp,
                     modifier = Modifier.alpha(textGlow)
                 )
-                
+
                 Text(
                     text = "Crafting your perfect diagram",
                     style = MaterialTheme.typography.titleLarge,
@@ -1196,9 +1247,9 @@ private fun FullScreenAiLoadingOverlay() {
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.alpha(textGlow * 0.9f)
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Text(
                     text = "ANALYZING • PROCESSING • GENERATING",
                     style = MaterialTheme.typography.bodyLarge,
@@ -1207,9 +1258,9 @@ private fun FullScreenAiLoadingOverlay() {
                     letterSpacing = 2.sp,
                     modifier = Modifier.alpha(textGlow * 0.8f)
                 )
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Text(
                     text = "Please wait while our AI creates your diagram...",
                     style = MaterialTheme.typography.bodyMedium,
@@ -1230,13 +1281,13 @@ private fun FullScreenLoadingIndicator(
     val primaryColor = MaterialTheme.colorScheme.primary
     val secondaryColor = MaterialTheme.colorScheme.secondary
     val tertiaryColor = MaterialTheme.colorScheme.tertiary
-    
+
     Canvas(
         modifier = Modifier.size(200.dp)
     ) {
         val center = Offset(size.width / 2, size.height / 2)
         val baseRadius = size.minDimension / 8
-        
+
         // Outer orbital ring with multiple particles
         rotate(rotationAngle, center) {
             for (i in 0 until 12) {
@@ -1247,8 +1298,9 @@ private fun FullScreenLoadingIndicator(
                     center.x + kotlin.math.cos(rad).toFloat() * distance,
                     center.y + kotlin.math.sin(rad).toFloat() * distance
                 )
-                
-                val alpha = (kotlin.math.sin(Math.toRadians((rotationAngle + angle).toDouble())).toFloat() + 1f) / 2f
+
+                val alpha = (kotlin.math.sin(Math.toRadians((rotationAngle + angle).toDouble()))
+                    .toFloat() + 1f) / 2f
                 drawCircle(
                     color = primaryColor.copy(alpha = alpha * 0.9f),
                     radius = baseRadius * 0.4f * (0.8f + alpha * 0.4f),
@@ -1256,7 +1308,7 @@ private fun FullScreenLoadingIndicator(
                 )
             }
         }
-        
+
         // Middle ring counter-rotating
         rotate(-rotationAngle * 0.6f, center) {
             for (i in 0 until 8) {
@@ -1267,7 +1319,7 @@ private fun FullScreenLoadingIndicator(
                     center.x + kotlin.math.cos(rad).toFloat() * distance,
                     center.y + kotlin.math.sin(rad).toFloat() * distance
                 )
-                
+
                 drawCircle(
                     color = secondaryColor.copy(alpha = 0.8f),
                     radius = baseRadius * 0.35f * pulseScale,
@@ -1275,7 +1327,7 @@ private fun FullScreenLoadingIndicator(
                 )
             }
         }
-        
+
         // Inner ring with faster rotation
         rotate(rotationAngle * 1.5f, center) {
             for (i in 0 until 6) {
@@ -1286,7 +1338,7 @@ private fun FullScreenLoadingIndicator(
                     center.x + kotlin.math.cos(rad).toFloat() * distance,
                     center.y + kotlin.math.sin(rad).toFloat() * distance
                 )
-                
+
                 drawCircle(
                     color = tertiaryColor.copy(alpha = 0.7f),
                     radius = baseRadius * 0.25f * pulseScale,
@@ -1294,7 +1346,7 @@ private fun FullScreenLoadingIndicator(
                 )
             }
         }
-        
+
         // Central core with radial gradient
         val gradientColors = listOf(
             primaryColor.copy(alpha = 1f),
@@ -1302,7 +1354,7 @@ private fun FullScreenLoadingIndicator(
             tertiaryColor.copy(alpha = 0.6f),
             Color.Transparent
         )
-        
+
         drawCircle(
             brush = Brush.radialGradient(
                 colors = gradientColors,
@@ -1311,19 +1363,38 @@ private fun FullScreenLoadingIndicator(
             radius = baseRadius * 1.2f * pulseScale,
             center = center
         )
-        
+
         // Central bright highlight
         drawCircle(
             color = Color.White.copy(alpha = 0.4f),
             radius = baseRadius * 0.6f * pulseScale,
             center = center
         )
-        
+
         // Very center dot
         drawCircle(
             color = primaryColor.copy(alpha = 0.9f),
             radius = baseRadius * 0.3f,
             center = center
         )
+    }
+}
+
+/**
+ * Format the auto-save timestamp for display
+ */
+private fun formatAutoSaveTime(timestamp: Long?): String {
+    if (timestamp == null) return "Never"
+
+    val currentTime = System.currentTimeMillis()
+    val timeDiff = currentTime - timestamp
+
+    return when {
+        timeDiff < 1000 * 60 -> "Just now"
+        timeDiff < 1000 * 60 * 60 -> "${timeDiff / (1000 * 60)}m ago"
+        else -> {
+            val formatter = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            formatter.format(java.util.Date(timestamp))
+        }
     }
 }

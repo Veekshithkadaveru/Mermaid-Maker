@@ -1,6 +1,10 @@
 package com.example.mermaidmaker.data.local.dao
 
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
 import com.example.mermaidmaker.data.local.entity.DiagramEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -14,6 +18,9 @@ interface DiagramDao {
 
     @Query("SELECT * FROM diagrams WHERE isFavorite = 1 ORDER BY updatedAt DESC")
     fun getFavoriteDiagrams(): Flow<List<DiagramEntity>>
+
+    @Query("SELECT * FROM diagrams ORDER BY updatedAt DESC LIMIT 1")
+    suspend fun getMostRecentDiagram(): DiagramEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDiagram(diagram: DiagramEntity)

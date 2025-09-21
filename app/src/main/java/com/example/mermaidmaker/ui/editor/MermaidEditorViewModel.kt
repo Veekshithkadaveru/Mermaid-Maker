@@ -12,6 +12,8 @@ import com.example.mermaidmaker.domain.repository.DiagramRepository
 import com.example.mermaidmaker.domain.usecase.GenerateAiDiagramUseCase
 import com.example.mermaidmaker.domain.usecase.GetBuiltInTemplatesUseCase
 import com.example.mermaidmaker.domain.usecase.GetTemplatesByTypeUseCase
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +27,8 @@ class MermaidEditorViewModel(
     private val getBuiltInTemplatesUseCase: GetBuiltInTemplatesUseCase,
     private val getTemplatesByTypeUseCase: GetTemplatesByTypeUseCase,
     private val diagramRepository: DiagramRepository,
-    private val generateAiDiagramUseCase: GenerateAiDiagramUseCase
+    private val generateAiDiagramUseCase: GenerateAiDiagramUseCase,
+    private val editorPreferences: com.example.mermaidmaker.data.local.prefs.EditorPreferences
 ) : ViewModel() {
 
     private val _editorContent = MutableStateFlow("")
@@ -62,9 +65,45 @@ class MermaidEditorViewModel(
     private val _isAiAvailable = MutableStateFlow(false)
     val isAiAvailable: StateFlow<Boolean> = _isAiAvailable.asStateFlow()
 
+    // Auto-save functionality
+    private val _isAutoSaveEnabled = MutableStateFlow(true)
+    val isAutoSaveEnabled: StateFlow<Boolean> = _isAutoSaveEnabled.asStateFlow()
+
+    private val _lastAutoSaveTime = MutableStateFlow<Long?>(null)
+    val lastAutoSaveTime: StateFlow<Long?> = _lastAutoSaveTime.asStateFlow()
+
+    private var autoSaveJob: Job? = null
+    private var lastContentSnapshot = ""
+    private val AUTO_SAVE_INTERVAL_MS = 30_000L // 30 seconds
+
     init {
         loadTemplates()
         checkAiAvailability()
+        startAutoSave()
+        // Attempt to load the most recently edited diagram on startup
+        viewModelScope.launch { loadMostRecent() }
+    }
+
+    /**
+     * Load the most recently updated diagram (if any)
+     */
+    suspend fun loadMostRecent() {
+        try {
+            val lastId = editorPreferences.getLastOpenedDiagramId()
+            val recent =
+                if (lastId != null) diagramRepository.getDiagramById(lastId) else diagramRepository.getMostRecentDiagram()
+            if (recent != null) {
+                Log.d("MermaidEditorViewModel", "Loaded most recent diagram: ${recent.id}")
+                _currentDiagramId.value = recent.id
+                editorPreferences.setLastOpenedDiagramId(recent.id)
+                _diagramTitle.value = recent.title
+                _editorContent.value = recent.content
+                _selectedDiagramType.value = recent.diagramType
+                lastContentSnapshot = recent.content
+            }
+        } catch (t: Throwable) {
+            Log.e("MermaidEditorViewModel", "Failed to load most recent diagram", t)
+        }
     }
 
     /**
@@ -79,9 +118,12 @@ class MermaidEditorViewModel(
                 val diagram = diagramRepository.getDiagramById(diagramId)
                 if (diagram != null) {
                     _currentDiagramId.value = diagramId
+                    editorPreferences.setLastOpenedDiagramId(diagramId)
                     _diagramTitle.value = diagram.title
                     _editorContent.value = diagram.content
                     _selectedDiagramType.value = diagram.diagramType
+                    // Initialize content snapshot for auto-save tracking
+                    lastContentSnapshot = diagram.content
                     // Load templates for this diagram type
                     val templates = getTemplatesByTypeUseCase(diagram.diagramType).first()
                     _availableTemplates.value = templates.filter { it.isBuiltIn }
@@ -424,5 +466,100 @@ class MermaidEditorViewModel(
      */
     fun refreshAiAvailability() {
         checkAiAvailability()
+    }
+
+    /**
+     * Start auto-save timer
+     */
+    private fun startAutoSave() {
+        autoSaveJob?.cancel()
+        autoSaveJob = viewModelScope.launch {
+            while (true) {
+                delay(AUTO_SAVE_INTERVAL_MS)
+                if (_isAutoSaveEnabled.value) {
+                    performAutoSave()
+                }
+            }
+        }
+    }
+
+    /**
+     * Perform auto-save if content has changed
+     */
+    private suspend fun performAutoSave() {
+        try {
+            val currentContent = _editorContent.value
+            val currentId = _currentDiagramId.value
+
+            // If no diagram exists yet but we have content, create one first
+            if (currentId == null && currentContent.isNotBlank()) {
+                val newDiagram = com.example.mermaidmaker.domain.model.MermaidDiagram(
+                    id = java.util.UUID.randomUUID().toString(),
+                    title = _diagramTitle.value.ifEmpty { "Untitled Diagram" },
+                    content = currentContent,
+                    diagramType = _selectedDiagramType.value,
+                    createdAt = java.time.LocalDateTime.now(),
+                    updatedAt = java.time.LocalDateTime.now(),
+                    isFavorite = false
+                )
+                diagramRepository.insertDiagram(newDiagram)
+                _currentDiagramId.value = newDiagram.id
+                lastContentSnapshot = currentContent
+                _lastAutoSaveTime.value = System.currentTimeMillis()
+                Log.d(
+                    "MermaidEditorViewModel",
+                    "Auto-saved NEW diagram at ${java.time.LocalDateTime.now()}"
+                )
+                return
+            }
+
+            // Only auto-save updates if content has changed and we have a diagram loaded
+            if (currentId != null && currentContent != lastContentSnapshot && currentContent.isNotBlank()) {
+                val existingDiagram = diagramRepository.getDiagramById(currentId)
+                if (existingDiagram != null) {
+                    val updatedDiagram = existingDiagram.copy(
+                        content = currentContent,
+                        updatedAt = java.time.LocalDateTime.now()
+                    )
+                    diagramRepository.updateDiagram(updatedDiagram)
+                    lastContentSnapshot = currentContent
+                    _lastAutoSaveTime.value = System.currentTimeMillis()
+                    Log.d(
+                        "MermaidEditorViewModel",
+                        "Auto-saved diagram at ${java.time.LocalDateTime.now()}"
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MermaidEditorViewModel", "Auto-save failed", e)
+        }
+    }
+
+    /**
+     * Enable or disable auto-save
+     */
+    fun setAutoSaveEnabled(enabled: Boolean) {
+        _isAutoSaveEnabled.value = enabled
+        if (enabled) {
+            startAutoSave()
+        } else {
+            autoSaveJob?.cancel()
+        }
+    }
+
+    /**
+     * Trigger manual auto-save
+     */
+    fun triggerAutoSave() {
+        if (_isAutoSaveEnabled.value) {
+            viewModelScope.launch {
+                performAutoSave()
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        autoSaveJob?.cancel()
     }
 }
