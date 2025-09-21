@@ -5,10 +5,16 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.mermaidmaker.util.escapeForJs
 
 /**
  * A Compose wrapper for the Mermaid syntax editor using WebView and CodeMirror
@@ -26,7 +32,7 @@ fun MermaidEditor(
     val context = LocalContext.current
     var webView by remember { mutableStateOf<WebView?>(null) }
     var isWebViewReady by remember { mutableStateOf(false) }
-    
+
     // JavaScript interface for communication with WebView
     val javascriptInterface = remember {
         MermaidEditorJavaScriptInterface(
@@ -80,20 +86,21 @@ private fun setupWebView(webView: WebView, javascriptInterface: MermaidEditorJav
             // Enable Safe Browsing (API 26+)
             safeBrowsingEnabled = true
         }
-        
+
         addJavascriptInterface(javascriptInterface, "Android")
-        
+
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 // Only allow loading from app assets
                 return url?.startsWith("file:///android_asset/")?.not() ?: false
             }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 javascriptInterface.onWebViewReady()
             }
         }
-        
+
         loadUrl("file:///android_asset/mermaid_editor.html")
     }
 }
@@ -107,16 +114,17 @@ class MermaidEditorJavaScriptInterface(
     private val onWebViewReady: () -> Unit
 ) {
     private var isReady = false
+
     @JavascriptInterface
     fun onContentChanged(content: String) {
         onContentChanged.invoke(content)
     }
-    
+
     @JavascriptInterface
     fun onCursorPositionChanged(line: Int, ch: Int) {
         onCursorPositionChanged.invoke(line, ch)
     }
-    
+
     fun onWebViewReady() {
         if (!isReady) {
             isReady = true
@@ -139,49 +147,49 @@ object MermaidEditorUtils {
             callback(content)
         }
     }
-    
+
     /**
      * Set content in the editor
      */
     fun setContent(webView: WebView, content: String) {
         webView.evaluateJavascript("setContent(`${content.escapeForJs()}`);", null)
     }
-    
+
     /**
      * Insert text at cursor position
      */
     fun insertText(webView: WebView, text: String) {
         webView.evaluateJavascript("insertText(`${text.escapeForJs()}`);", null)
     }
-    
+
     /**
      * Clear editor content
      */
     fun clear(webView: WebView) {
         webView.evaluateJavascript("clear();", null)
     }
-    
+
     /**
      * Focus the editor
      */
     fun focus(webView: WebView) {
         webView.evaluateJavascript("focus();", null)
     }
-    
+
     /**
      * Insert a template into the editor
      */
     fun insertTemplate(webView: WebView, templateContent: String) {
         webView.evaluateJavascript("insertTemplate(`${templateContent.escapeForJs()}`);", null)
     }
-    
+
     /**
      * Set editor theme
      */
     fun setTheme(webView: WebView, theme: String) {
         webView.evaluateJavascript("setTheme('$theme');", null)
     }
-    
+
     /**
      * Set font size
      */
@@ -191,17 +199,8 @@ object MermaidEditorUtils {
 }
 
 /**
- * Extension functions for string escaping/unescaping for JavaScript
+ * String escaping moved to util.StringJsEscaping
  */
-private fun String.escapeForJs(): String {
-    return this
-        .replace("\\", "\\\\")
-        .replace("`", "\\`")
-        .replace("$", "\\$")
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
-}
 
 private fun String.unescapeFromJs(): String {
     return this

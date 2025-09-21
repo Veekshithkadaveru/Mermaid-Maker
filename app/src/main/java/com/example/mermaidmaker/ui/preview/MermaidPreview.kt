@@ -2,24 +2,52 @@ package com.example.mermaidmaker.ui.preview
 
 import android.annotation.SuppressLint
 import android.util.Log
-import android.webkit.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
+import android.webkit.JsResult
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.mermaidmaker.util.WebViewPngGenerator
 import com.example.mermaidmaker.util.MemoryUtils
+import com.example.mermaidmaker.util.WebViewPngGenerator
+import com.example.mermaidmaker.util.escapeForJs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONObject
-import kotlin.math.roundToInt
 
 /**
  * State holder for MermaidPreview
@@ -28,26 +56,26 @@ import kotlin.math.roundToInt
 class MermaidPreviewState {
     private val _isReady = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
-    
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-    
+
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
-    
+
     private val _lastRenderedContent = MutableStateFlow("")
     val lastRenderedContent: StateFlow<String> = _lastRenderedContent.asStateFlow()
-    
+
     private var webView: WebView? = null
     private var queuedContent: String? = null
     private val pngGenerator = WebViewPngGenerator()
-    
+
     internal fun setWebView(webView: WebView) {
         this.webView = webView
         _isReady.value = false
         queuedContent = null
     }
-    
+
     internal fun setReady(ready: Boolean) {
         _isReady.value = ready
         if (ready && queuedContent != null) {
@@ -57,19 +85,19 @@ class MermaidPreviewState {
             content?.let { renderDiagram(it, debounced = false) }
         }
     }
-    
+
     internal fun setLoading(loading: Boolean) {
         _isLoading.value = loading
     }
-    
+
     internal fun setError(error: String?) {
         _error.value = error
     }
-    
+
     internal fun setLastRenderedContent(content: String) {
         _lastRenderedContent.value = content
     }
-    
+
     /**
      * Render Mermaid diagram with the given source
      */
@@ -106,7 +134,7 @@ class MermaidPreviewState {
             }
         }
     }
-    
+
     /**
      * Clear the preview
      */
@@ -116,14 +144,14 @@ class MermaidPreviewState {
         setError(null)
         queuedContent = null
     }
-    
+
     /**
      * Set theme for Mermaid diagrams
      */
     fun setTheme(theme: String) {
         webView?.evaluateJavascript("setTheme('$theme');", null)
     }
-    
+
     /**
      * Get rendered SVG content
      */
@@ -134,21 +162,21 @@ class MermaidPreviewState {
                 callback(null)
                 return
             }
-            
+
             Log.d("MermaidPreview", "Attempting to get rendered SVG")
             webView.evaluateJavascript("getRenderedSVG();") { result ->
                 Log.d("MermaidPreview", "SVG result from WebView: $result")
-                
+
                 if (result == null || result == "null" || result.isEmpty()) {
                     Log.e("MermaidPreview", "No SVG content returned from WebView")
                     callback(null)
                     return@evaluateJavascript
                 }
-                
+
                 // Remove quotes and unescape the result
                 val svg = result.removeSurrounding("\"").unescapeFromJs()
                 Log.d("MermaidPreview", "Processed SVG length: ${svg.length}")
-                
+
                 if (svg.isBlank()) {
                     Log.e("MermaidPreview", "SVG content is blank after processing")
                     callback(null)
@@ -166,7 +194,7 @@ class MermaidPreviewState {
      * Export rendered SVG using FileExportService
      */
     fun exportSVG(
-        fileName: String = "diagram.svg", 
+        fileName: String = "diagram.svg",
         fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
         onResult: (Boolean) -> Unit
     ) {
@@ -175,7 +203,10 @@ class MermaidPreviewState {
                 CoroutineScope(Dispatchers.Main).launch {
                     fileExportService.exportSvg(svg, fileName) { uri ->
                         val success = uri != null
-                        Log.d("MermaidPreview", if (success) "SVG exported successfully to: $uri" else "SVG export failed")
+                        Log.d(
+                            "MermaidPreview",
+                            if (success) "SVG exported successfully to: $uri" else "SVG export failed"
+                        )
                         onResult(success)
                     }
                 }
@@ -198,7 +229,10 @@ class MermaidPreviewState {
             if (svg != null && svg.isNotBlank()) {
                 CoroutineScope(Dispatchers.Main).launch {
                     val success = fileExportService.shareSvg(svg, fileName)
-                    Log.d("MermaidPreview", if (success) "SVG share initiated successfully" else "SVG share failed")
+                    Log.d(
+                        "MermaidPreview",
+                        if (success) "SVG share initiated successfully" else "SVG share failed"
+                    )
                     onResult(success)
                 }
             } else {
@@ -222,10 +256,17 @@ class MermaidPreviewState {
                         callback(png)
                         completed = true
                     } else {
-                        Log.w("MermaidPreview", "SVG->PNG renderer returned empty; falling back to WebView capture")
+                        Log.w(
+                            "MermaidPreview",
+                            "SVG->PNG renderer returned empty; falling back to WebView capture"
+                        )
                     }
                 } catch (e: Exception) {
-                    Log.w("MermaidPreview", "SVG->PNG renderer failed; falling back to WebView capture", e)
+                    Log.w(
+                        "MermaidPreview",
+                        "SVG->PNG renderer failed; falling back to WebView capture",
+                        e
+                    )
                 }
             }
             if (!completed) {
@@ -261,9 +302,21 @@ class MermaidPreviewState {
 
             val decoded = svgContent.decodeUnicodeEscapes()
             val svg = com.caverock.androidsvg.SVG.getFromString(decoded)
-            val viewBox = try { svg.documentViewBox } catch (_: Exception) { null }
-            var outWidth = try { svg.documentWidth } catch (_: Exception) { 0f }
-            var outHeight = try { svg.documentHeight } catch (_: Exception) { 0f }
+            val viewBox = try {
+                svg.documentViewBox
+            } catch (_: Exception) {
+                null
+            }
+            var outWidth = try {
+                svg.documentWidth
+            } catch (_: Exception) {
+                0f
+            }
+            var outHeight = try {
+                svg.documentHeight
+            } catch (_: Exception) {
+                0f
+            }
 
             if (outWidth <= 0f || outHeight <= 0f) {
                 if (viewBox != null) {
@@ -274,33 +327,46 @@ class MermaidPreviewState {
                     outHeight = 768f
                 }
             }
-            
+
             // Add padding for centering - consistent with WebView approach
             val padding = 32f // 8px internal + 24px external margin
             val canvasWidth = outWidth + padding * 2
             val canvasHeight = outHeight + padding * 2
-            
+
             outWidth = canvasWidth.coerceAtLeast(1f).coerceAtMost(8000f)
             outHeight = canvasHeight.coerceAtLeast(1f).coerceAtMost(8000f)
-            
+
             // Validate bitmap size before creation
             val totalPixels = (outWidth * outHeight).toLong()
             val maxPixels = 24_000_000L
             if (totalPixels > maxPixels) {
-                Log.w("MermaidPreview", "SVG too large for bitmap: $totalPixels pixels (max: $maxPixels)")
+                Log.w(
+                    "MermaidPreview",
+                    "SVG too large for bitmap: $totalPixels pixels (max: $maxPixels)"
+                )
                 return null
             }
-            
-            val bitmap = android.graphics.Bitmap.createBitmap(outWidth.toInt(), outHeight.toInt(), android.graphics.Bitmap.Config.ARGB_8888)
+
+            val bitmap = android.graphics.Bitmap.createBitmap(
+                outWidth.toInt(),
+                outHeight.toInt(),
+                android.graphics.Bitmap.Config.ARGB_8888
+            )
             val canvas = android.graphics.Canvas(bitmap)
             canvas.drawColor(android.graphics.Color.WHITE)
-            
+
 
             canvas.translate(padding, padding)
 
-            try { svg.setDocumentWidth(outWidth - padding * 2) } catch (_: Exception) {}
-            try { svg.setDocumentHeight(outHeight - padding * 2) } catch (_: Exception) {}
-            
+            try {
+                svg.setDocumentWidth(outWidth - padding * 2)
+            } catch (_: Exception) {
+            }
+            try {
+                svg.setDocumentHeight(outHeight - padding * 2)
+            } catch (_: Exception) {
+            }
+
             svg.renderToCanvas(canvas)
             val os = java.io.ByteArrayOutputStream()
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, os)
@@ -363,7 +429,10 @@ class MermaidPreviewState {
                 CoroutineScope(Dispatchers.Main).launch {
                     fileExportService.exportPng(pngData, fileName) { uri ->
                         val success = uri != null
-                        Log.d("MermaidPreview", if (success) "PNG exported successfully to: $uri" else "PNG export failed")
+                        Log.d(
+                            "MermaidPreview",
+                            if (success) "PNG exported successfully to: $uri" else "PNG export failed"
+                        )
                         onResult(success)
                     }
                 }
@@ -386,7 +455,10 @@ class MermaidPreviewState {
             if (pngData != null && pngData.isNotEmpty()) {
                 CoroutineScope(Dispatchers.Main).launch {
                     val success = fileExportService.sharePng(pngData, fileName)
-                    Log.d("MermaidPreview", if (success) "PNG share initiated successfully" else "PNG share failed")
+                    Log.d(
+                        "MermaidPreview",
+                        if (success) "PNG share initiated successfully" else "PNG share failed"
+                    )
                     onResult(success)
                 }
             } else {
@@ -415,7 +487,7 @@ class MermaidPreviewState {
     fun setZoom(scale: Float) {
         webView?.evaluateJavascript("setScale(${"%1.2f".format(scale)});", null)
     }
-    
+
     /**
      * Reload the HTML page to ensure fresh WebView state
      */
@@ -456,11 +528,11 @@ fun MermaidPreview(
     val isReady by state.isReady.collectAsState()
     val isLoading by state.isLoading.collectAsState()
     val error by state.error.collectAsState()
-    
+
     // JavaScript interface for communication with WebView
     val javascriptInterface = remember {
         MermaidPreviewJavaScriptInterface(
-            onWebViewReady = { 
+            onWebViewReady = {
                 Log.d("MermaidPreview", "WebView ready")
                 state.setReady(true)
                 state.setTheme(theme)
@@ -479,7 +551,7 @@ fun MermaidPreview(
             }
         )
     }
-    
+
     Box(modifier = modifier) {
         // WebView for preview
         AndroidView(
@@ -491,7 +563,7 @@ fun MermaidPreview(
                 }
             }
         )
-        
+
         // Loading overlay - only show when ready
         if (isLoading && isReady) {
             Box(
@@ -522,7 +594,7 @@ fun MermaidPreview(
                 }
             }
         }
-        
+
         // Overlay zoom controls (optional)
         if (showControls) {
             Box(
@@ -570,7 +642,7 @@ fun MermaidPreview(
                 }
             }
         }
-        
+
         // Not ready overlay
         if (!isReady) {
             Box(
@@ -600,7 +672,7 @@ fun MermaidPreview(
             }
         }
     }
-    
+
     // Render content when it changes (only if WebView is ready)
     LaunchedEffect(content, isReady) {
         if (content.isNotBlank()) {
@@ -609,14 +681,14 @@ fun MermaidPreview(
             state.clearPreview()
         }
     }
-    
+
     // Set theme when it changes
     LaunchedEffect(theme, isReady) {
         if (isReady) {
             state.setTheme(theme)
         }
     }
-    
+
     // Apply zoom when it changes
     LaunchedEffect(zoomLevel, isReady) {
         if (isReady) {
@@ -631,11 +703,11 @@ fun MermaidPreview(
  */
 @SuppressLint("SetJavaScriptEnabled")
 private fun setupMermaidPreviewWebView(
-    webView: WebView, 
+    webView: WebView,
     javascriptInterface: MermaidPreviewJavaScriptInterface
 ) {
     Log.d("MermaidPreview", "Setting up WebView")
-    
+
     webView.apply {
         // Ensure transparent background to avoid white areas behind SVG
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -662,53 +734,80 @@ private fun setupMermaidPreviewWebView(
             minimumFontSize = 12
             cacheMode = WebSettings.LOAD_NO_CACHE // Always fresh content
         }
-        
+
         // Security: Only allow access to assets
         webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
                 val url = request?.url?.toString() ?: return false
                 // Only allow file:///android_asset/ URLs
                 return !url.startsWith("file:///android_asset/")
             }
-            
-            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+
+            override fun onPageStarted(
+                view: WebView?,
+                url: String?,
+                favicon: android.graphics.Bitmap?
+            ) {
                 super.onPageStarted(view, url, favicon)
                 Log.d("MermaidPreview", "Page started loading: $url")
             }
-            
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 Log.d("MermaidPreview", "Page finished loading: $url")
             }
-            
+
             @Deprecated("Deprecated in Java")
-            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+            override fun onReceivedError(
+                view: WebView?,
+                errorCode: Int,
+                description: String?,
+                failingUrl: String?
+            ) {
                 super.onReceivedError(view, errorCode, description, failingUrl)
                 Log.e("MermaidPreview", "WebView error: $errorCode - $description")
             }
-            
-            override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
+
+            override fun onReceivedHttpError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                errorResponse: WebResourceResponse?
+            ) {
                 super.onReceivedHttpError(view, request, errorResponse)
-                Log.e("MermaidPreview", "HTTP error: ${errorResponse?.statusCode} - ${errorResponse?.reasonPhrase}")
+                Log.e(
+                    "MermaidPreview",
+                    "HTTP error: ${errorResponse?.statusCode} - ${errorResponse?.reasonPhrase}"
+                )
             }
         }
-        
+
         addJavascriptInterface(javascriptInterface, "Android")
-        
+
         webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
-                Log.d("MermaidPreview", "Console: ${consoleMessage.message()} at ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}")
+                Log.d(
+                    "MermaidPreview",
+                    "Console: ${consoleMessage.message()} at ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}"
+                )
                 return true
             }
-            
-            override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
+
+            override fun onJsAlert(
+                view: WebView?,
+                url: String?,
+                message: String?,
+                result: JsResult?
+            ): Boolean {
                 Log.d("MermaidPreview", "JS Alert: $message")
                 result?.confirm()
                 return true
             }
         }
-        
-        
+
+
         Log.d("MermaidPreview", "Loading Mermaid preview HTML")
         loadUrl("file:///android_asset/mermaid_preview.html")
     }
@@ -727,13 +826,13 @@ class MermaidPreviewJavaScriptInterface(
         Log.d("MermaidPreviewJS", "WebView ready callback received")
         onWebViewReady.invoke()
     }
-    
+
     @JavascriptInterface
     fun onRenderSuccess(svgLength: Int) {
         Log.d("MermaidPreviewJS", "Render success: $svgLength characters")
         onRenderSuccess.invoke(svgLength)
     }
-    
+
     @JavascriptInterface
     fun onRenderError(error: String) {
         Log.e("MermaidPreviewJS", "Render error: $error")
@@ -742,19 +841,8 @@ class MermaidPreviewJavaScriptInterface(
 }
 
 /**
- * Utility functions for string escaping/unescaping for JavaScript
+ * Utility functions for string escaping/unescaping for JavaScript moved to util.StringJsEscaping
  */
-private fun String.escapeForJs(): String {
-    return this
-        .replace("\\", "\\\\")
-        .replace("`", "\\`")
-        .replace("$", "\\$")
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
-        .replace("\"", "\\\"")
-        .replace("'", "\\'")
-}
 
 private fun String.unescapeFromJs(): String {
     return this
@@ -773,18 +861,20 @@ private fun String.unescapeFromJs(): String {
  */
 @Composable
 fun MermaidPreviewTest() {
-    var content by remember { 
-        mutableStateOf("""
+    var content by remember {
+        mutableStateOf(
+            """
             graph TD
                 A[Start] --> B{Decision?}
                 B -->|Yes| C[Process A]
                 B -->|No| D[Process B]
                 C --> E[End]
                 D --> E
-        """.trimIndent()) 
+        """.trimIndent()
+        )
     }
     val previewState = rememberMermaidPreviewState()
-    
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Test content selector
         Card(
@@ -794,13 +884,13 @@ fun MermaidPreviewTest() {
         ) {
             Column(modifier = Modifier.padding(8.dp)) {
                 Text("Test Content:", style = MaterialTheme.typography.labelMedium)
-                
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.padding(top = 4.dp)
                 ) {
                     Button(
-                        onClick = { 
+                        onClick = {
                             content = """
                                 graph TD
                                     A[Start] --> B[Process]
@@ -811,9 +901,9 @@ fun MermaidPreviewTest() {
                     ) {
                         Text("Flowchart", style = MaterialTheme.typography.bodySmall)
                     }
-                    
+
                     Button(
-                        onClick = { 
+                        onClick = {
                             content = """
                                 sequenceDiagram
                                     Alice->>Bob: Hello Bob!
@@ -824,7 +914,7 @@ fun MermaidPreviewTest() {
                     ) {
                         Text("Sequence", style = MaterialTheme.typography.bodySmall)
                     }
-                    
+
                     Button(
                         onClick = { content = "invalid syntax" },
                         modifier = Modifier.weight(1f)
@@ -834,7 +924,7 @@ fun MermaidPreviewTest() {
                 }
             }
         }
-        
+
         // Preview
         MermaidPreview(
             content = content,
