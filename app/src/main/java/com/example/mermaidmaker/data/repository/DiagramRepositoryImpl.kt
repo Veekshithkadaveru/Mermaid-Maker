@@ -7,6 +7,7 @@ import com.example.mermaidmaker.domain.model.MermaidDiagram
 import com.example.mermaidmaker.domain.repository.DiagramRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+
 class DiagramRepositoryImpl(
     private val diagramDao: DiagramDao
 ) : DiagramRepository {
@@ -41,5 +42,9 @@ class DiagramRepositoryImpl(
 
     override suspend fun toggleFavorite(id: String) {
         diagramDao.toggleFavorite(id)
+    }
+
+    override suspend fun getMostRecentDiagram(): MermaidDiagram? {
+        return diagramDao.getMostRecentDiagram()?.toDomain()
     }
 }
