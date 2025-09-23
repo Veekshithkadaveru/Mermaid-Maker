@@ -1,5 +1,7 @@
 package com.example.mermaidmaker.ui.editor
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -13,21 +15,32 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +59,7 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -148,48 +162,177 @@ fun SyntaxHighlightedEditor(
         lintErrors = analyzeMermaidFast(textFieldValue.text)
     }
 
+    // File open/save launchers
+    val context = LocalContext.current
+    val openTxtLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    input.bufferedReader(Charsets.UTF_8).readText()
+                }
+            }.onSuccess { text ->
+                if (text != null) {
+                    val newValue = textFieldValue.copy(text = text)
+                    textFieldValue = newValue
+                    onContentChanged(text)
+                    pushHistory(newValue, forceNewEntry = true)
+                }
+            }
+        }
+    }
+    val saveTxtLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) {
+            val contentToSave = textFieldValue.text
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.writer(Charsets.UTF_8).use { writer ->
+                        writer.write(contentToSave)
+                    }
+                }
+            }.onFailure { _ ->
+                // No-op here; parent screen may show feedback
+            }
+        }
+    }
+
     Column(
         modifier = modifier.fillMaxSize()
     ) {
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceVariant
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 1.dp,
+            tonalElevation = 2.dp
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Enhanced Editor ✓",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = if (lintErrors.isNotEmpty()) "${lintErrors.size} errors" else "No errors",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (lintErrors.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Undo",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (canUndo()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .let { base -> if (canUndo()) base.clickable { undo() } else base }
-                    )
-                    Text(
-                        text = "Redo",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (canRedo()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .let { base -> if (canRedo()) base.clickable { redo() } else base }
-                    )
-                    Text(
-                        text = "${textFieldValue.text.length} characters",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                // File operations group
+                Surface(
+                    modifier = Modifier,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        IconButton(
+                            onClick = { openTxtLauncher.launch(arrayOf("text/plain")) },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.FolderOpen, 
+                                contentDescription = "Open file",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                val suggested = "diagram.txt"
+                                saveTxtLauncher.launch(suggested)
+                            },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Save, 
+                                contentDescription = "Save file",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
+                // Middle section with status info
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Character count
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "${textFieldValue.text.length} chars",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    
+                    // Error/validation status
+                    Surface(
+                        color = if (lintErrors.isNotEmpty()) 
+                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                        else 
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = if (lintErrors.isNotEmpty()) "${lintErrors.size} errors" else "No errors",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = if (lintErrors.isNotEmpty()) 
+                                MaterialTheme.colorScheme.error 
+                            else 
+                                MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                // Edit operations group
+                Surface(
+                    modifier = Modifier,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        IconButton(
+                            onClick = { undo() }, 
+                            enabled = canUndo(),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Undo, 
+                                contentDescription = "Undo",
+                                tint = if (canUndo()) 
+                                    MaterialTheme.colorScheme.primary 
+                                else 
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            )
+                        }
+                        IconButton(
+                            onClick = { redo() }, 
+                            enabled = canRedo(),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Redo, 
+                                contentDescription = "Redo",
+                                tint = if (canRedo()) 
+                                    MaterialTheme.colorScheme.primary 
+                                else 
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            )
+                        }
+                    }
                 }
             }
         }
