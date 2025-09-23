@@ -54,7 +54,7 @@ fun HomeScreen(
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navController.navigate("create") }
+                onClick = { navController.navigate("editor") }
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Create new diagram")
             }
