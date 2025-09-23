@@ -4,8 +4,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.util.Log
+import android.webkit.WebView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mermaidmaker.data.service.ThumbnailGenerator
 import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.domain.model.Template
 import com.example.mermaidmaker.domain.repository.DiagramRepository
@@ -28,7 +30,8 @@ class MermaidEditorViewModel(
     private val getTemplatesByTypeUseCase: GetTemplatesByTypeUseCase,
     private val diagramRepository: DiagramRepository,
     private val generateAiDiagramUseCase: GenerateAiDiagramUseCase,
-    private val editorPreferences: com.example.mermaidmaker.data.local.prefs.EditorPreferences
+    private val editorPreferences: com.example.mermaidmaker.data.local.prefs.EditorPreferences,
+    private val thumbnailGenerator: ThumbnailGenerator
 ) : ViewModel() {
 
     private val _editorContent = MutableStateFlow("")
@@ -187,6 +190,34 @@ class MermaidEditorViewModel(
                 onError(e)
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Generate thumbnail for the current diagram
+     */
+    fun generateThumbnail(webView: WebView, isReady: Boolean) {
+        val currentId = _currentDiagramId.value ?: return
+        
+        viewModelScope.launch {
+            try {
+                val thumbnailPath = thumbnailGenerator.generateThumbnail(webView, isReady, currentId)
+                
+                if (thumbnailPath != null) {
+                    // Update the diagram with the thumbnail path
+                    val existingDiagram = diagramRepository.getDiagramById(currentId)
+                    if (existingDiagram != null) {
+                        val updatedDiagram = existingDiagram.copy(
+                            thumbnailPath = thumbnailPath,
+                            updatedAt = java.time.LocalDateTime.now()
+                        )
+                        diagramRepository.updateDiagram(updatedDiagram)
+                        Log.d("MermaidEditorViewModel", "Thumbnail generated and saved: $thumbnailPath")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MermaidEditorViewModel", "Failed to generate thumbnail", e)
             }
         }
     }
@@ -500,7 +531,8 @@ class MermaidEditorViewModel(
                     diagramType = _selectedDiagramType.value,
                     createdAt = java.time.LocalDateTime.now(),
                     updatedAt = java.time.LocalDateTime.now(),
-                    isFavorite = false
+                    isFavorite = false,
+                    thumbnailPath = null
                 )
                 diagramRepository.insertDiagram(newDiagram)
                 _currentDiagramId.value = newDiagram.id

@@ -12,7 +12,8 @@ fun DiagramEntity.toDomain(): MermaidDiagram {
         diagramType = DiagramType.valueOf(diagramType),
         createdAt = createdAt,
         updatedAt = updatedAt,
-        isFavorite = isFavorite
+        isFavorite = isFavorite,
+        thumbnailPath = thumbnailPath
     )
 }
 
@@ -24,6 +25,7 @@ fun MermaidDiagram.toEntity(): DiagramEntity {
         diagramType = diagramType.name,
         createdAt = createdAt,
         updatedAt = updatedAt,
-        isFavorite = isFavorite
+        isFavorite = isFavorite,
+        thumbnailPath = thumbnailPath
     )
 }

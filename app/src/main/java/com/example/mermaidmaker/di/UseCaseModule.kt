@@ -3,6 +3,7 @@ package com.example.mermaidmaker.di
 import com.example.mermaidmaker.data.database.DatabaseSeeder
 import com.example.mermaidmaker.data.service.AiDiagramServiceImpl
 import com.example.mermaidmaker.data.service.FileExportServiceImpl
+import com.example.mermaidmaker.data.service.ThumbnailGenerator
 import com.example.mermaidmaker.data.template.TemplateLoader
 import com.example.mermaidmaker.domain.service.AiDiagramService
 import com.example.mermaidmaker.domain.service.FileExportService
@@ -27,11 +28,12 @@ val useCaseModule = module {
     // Services
     single<FileExportService> { FileExportServiceImpl(androidContext()) }
     single<AiDiagramService> { AiDiagramServiceImpl(get(), get()) }
+    single { ThumbnailGenerator(androidContext()) }
 
     // Use Cases
     factory { CreateDiagramUseCase(get()) }
     factory { CreateTemplateUseCase(get()) }
-    factory { DeleteDiagramUseCase(get()) }
+    factory { DeleteDiagramUseCase(get(), get()) }
     factory { DeleteTemplateUseCase(get()) }
     factory<ExportDiagramUseCase> { ExportDiagramUseCaseImpl(get(), get()) }
     factory { GetAllDiagramsUseCase(get()) }

@@ -13,5 +13,6 @@ data class DiagramEntity(
     val diagramType: String,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val thumbnailPath: String? = null
 )

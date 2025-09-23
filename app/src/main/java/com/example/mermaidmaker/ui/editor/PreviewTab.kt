@@ -49,7 +49,8 @@ import com.example.mermaidmaker.util.escapeForJs
 fun PreviewTab(
     content: String,
     previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
-    fileExportService: com.example.mermaidmaker.domain.service.FileExportService
+    fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
+    onThumbnailGenerated: ((WebView, Boolean) -> Unit)? = null
 ) {
     var zoomLevel by remember { mutableStateOf(100) }
     val isPreviewLoading by previewState.isLoading.collectAsState()
@@ -172,7 +173,8 @@ fun PreviewTab(
                         zoomLevel = zoomLevel,
                         modifier = Modifier
                             .fillMaxSize(),
-                        previewState = previewState
+                        previewState = previewState,
+                        onThumbnailGenerated = onThumbnailGenerated
                     )
 
                     // Loading overlay for preview
@@ -217,7 +219,8 @@ fun FullScreenMermaidPreview(
     content: String,
     zoomLevel: Int,
     modifier: Modifier = Modifier,
-    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null
+    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null,
+    onThumbnailGenerated: ((WebView, Boolean) -> Unit)? = null
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     var isReady by remember { mutableStateOf(false) }
@@ -232,7 +235,7 @@ fun FullScreenMermaidPreview(
 
                 previewState?.setWebView(newWebView)
                 previewState?.setReady(true)
-            }, previewState = previewState)
+            }, previewState = previewState, onThumbnailGenerated = onThumbnailGenerated)
             newWebView
         },
         update = { wv ->
@@ -272,7 +275,8 @@ fun FullScreenMermaidPreview(
 fun setupFullScreenWebView(
     webView: WebView,
     onReady: () -> Unit,
-    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null
+    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null,
+    onThumbnailGenerated: ((WebView, Boolean) -> Unit)? = null
 ) {
     webView.apply {
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -304,6 +308,9 @@ fun setupFullScreenWebView(
                 Log.d("FullScreenMermaidPreview", "Render success: $svgLength characters")
                 previewState?.setLoading(false)
                 previewState?.setError(null)
+                
+                // Generate thumbnail after successful render
+                onThumbnailGenerated?.invoke(webView, true)
             }
 
             @android.webkit.JavascriptInterface

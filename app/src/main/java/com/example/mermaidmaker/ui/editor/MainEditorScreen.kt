@@ -265,7 +265,10 @@ fun MainEditorScreen(
                     3 -> PreviewTab(
                         content = editorContent,
                         previewState = previewState,
-                        fileExportService = fileExportService
+                        fileExportService = fileExportService,
+                        onThumbnailGenerated = { webView, isReady ->
+                            viewModel.generateThumbnail(webView, isReady)
+                        }
                     )
                 }
             }

@@ -13,7 +13,7 @@ import com.example.mermaidmaker.data.local.entity.TemplateEntity
 
 @Database(
     entities = [DiagramEntity::class, TemplateEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(DateTimeConverter::class)
