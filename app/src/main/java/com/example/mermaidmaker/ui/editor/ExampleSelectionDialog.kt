@@ -6,20 +6,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -28,9 +26,7 @@ import com.example.mermaidmaker.domain.model.DiagramType
 @Composable
 fun ExampleSelectionDialog(
     selectedDiagramType: DiagramType,
-    availableTemplates: List<com.example.mermaidmaker.domain.model.Template>,
     onDiagramTypeSelected: (DiagramType) -> Unit,
-    onTemplateSelected: (com.example.mermaidmaker.domain.model.Template) -> Unit,
     onDismiss: () -> Unit
 ) {
     Dialog(
@@ -56,7 +52,7 @@ fun ExampleSelectionDialog(
                     text = "Diagram examples",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 24.dp)
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
 
                 // Diagram type selection grid
@@ -72,11 +68,13 @@ fun ExampleSelectionDialog(
                                 ExampleButton(
                                     text = getDiagramTypeDisplayName(diagramType),
                                     isSelected = selectedDiagramType == diagramType,
-                                    onClick = { onDiagramTypeSelected(diagramType) },
+                                    onClick = {
+                                        onDiagramTypeSelected(diagramType)
+                                        onDismiss()
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
-                            // Fill remaining space if odd number of items
                             if (rowTypes.size == 1) {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
@@ -84,37 +82,7 @@ fun ExampleSelectionDialog(
                     }
                 }
 
-                // Show templates for selected type
-                if (availableTemplates.isNotEmpty()) {
-                    Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
-                    Text(
-                        text = "Templates",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.heightIn(max = 200.dp)
-                    ) {
-                        items(availableTemplates.take(5)) { template ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = { onTemplateSelected(template) },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                Text(
-                                    text = template.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+                // Templates removed from Examples section per request
             }
         }
     }
@@ -130,7 +98,7 @@ fun ExampleButton(
     Button(
         onClick = onClick,
         modifier = modifier
-            .height(48.dp),
+            .height(52.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primary
@@ -147,8 +115,10 @@ fun ExampleButton(
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
