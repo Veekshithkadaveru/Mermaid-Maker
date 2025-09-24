@@ -51,7 +51,6 @@ fun MainEditorScreen(
     var showFontSizeDialog by remember { mutableStateOf(false) }
     val editorContent by viewModel.editorContent.collectAsState()
     val selectedDiagramType by viewModel.selectedDiagramType.collectAsState()
-    val availableTemplates by viewModel.availableTemplates.collectAsState()
     val fontSize by viewModel.fontSize.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
@@ -70,7 +69,7 @@ fun MainEditorScreen(
     )
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val tabs = listOf("Text", "Code", "example", "Preview")
+    val tabs = listOf("Text", "Code", "Examples", "Preview")
 
     // Initialize with existing diagram if provided; otherwise, rely on ViewModel's recent load
     LaunchedEffect(diagramId) {
@@ -162,7 +161,7 @@ fun MainEditorScreen(
                     Tab(
                         selected = selectedTabIndex == index,
                         onClick = {
-                            if (title == "example") {
+                            if (title == "Examples") {
                                 showExampleDialog = true
                             } else {
                                 selectedTabIndex = index
@@ -281,23 +280,16 @@ fun MainEditorScreen(
             }
         }
 
-        // Example Dialog
+        // Examples Dialog
         if (showExampleDialog) {
             ExampleSelectionDialog(
                 selectedDiagramType = selectedDiagramType,
-                availableTemplates = availableTemplates,
                 onDiagramTypeSelected = { type ->
                     viewModel.setDiagramType(type)
                     val template = viewModel.generateBasicTemplate()
                     viewModel.updateContent(template)
                     editorState.setContent(template)
                     selectedTabIndex = 1 // Switch to Code tab
-                },
-                onTemplateSelected = { template ->
-                    viewModel.updateContent(template.content)
-                    editorState.setContent(template.content)
-                    selectedTabIndex = 1 // Switch to Code tab
-                    showExampleDialog = false
                 },
                 onDismiss = { showExampleDialog = false }
             )
