@@ -25,6 +25,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +39,7 @@ import com.example.mermaidmaker.ui.ai.AiGenerationTab
 import com.example.mermaidmaker.ui.preview.rememberMermaidPreviewState
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +70,7 @@ fun MainEditorScreen(
         initialContent = editorContent
     )
     val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
 
     val tabs = listOf("Text", "Code", "Examples", "Preview")
 
@@ -246,6 +249,11 @@ fun MainEditorScreen(
                         onContentChanged = { content ->
                             viewModel.updateContent(content)
                             editorState.setContent(content)
+                        },
+                        onShowSnackbar = { message ->
+                            snackbarScope.launch {
+                                snackbarHostState.showSnackbar(message)
+                            }
                         }
                     )
 
@@ -257,6 +265,11 @@ fun MainEditorScreen(
                             onContentChanged = { content ->
                                 viewModel.updateContent(content)
                                 editorState.setContent(content)
+                            },
+                            onShowSnackbar = { message ->
+                                snackbarScope.launch {
+                                    snackbarHostState.showSnackbar(message)
+                                }
                             }
                         )
                     }
@@ -264,7 +277,14 @@ fun MainEditorScreen(
                     3 -> PreviewTab(
                         content = editorContent,
                         previewState = previewState,
-                        fileExportService = fileExportService
+                        fileExportService = fileExportService,
+                        onShowSnackbar = { message ->
+                            snackbarScope.launch {
+                                snackbarHostState.showSnackbar(
+                                    message = message
+                                )
+                            }
+                        }
                     )
                 }
             }

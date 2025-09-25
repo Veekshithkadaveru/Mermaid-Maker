@@ -89,7 +89,8 @@ fun SyntaxHighlightedEditor(
     content: String = "",
     fontSize: Int = 14,
     onContentChanged: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onShowSnackbar: (String) -> Unit = {}
 ) {
     var textFieldValue by remember { mutableStateOf(TextFieldValue(content)) }
 
@@ -193,8 +194,10 @@ fun SyntaxHighlightedEditor(
                         writer.write(contentToSave)
                     }
                 }
+            }.onSuccess {
+                onShowSnackbar("Saved")
             }.onFailure { _ ->
-                // No-op here; parent screen may show feedback
+                onShowSnackbar("Failed to save")
             }
         }
     }
@@ -238,7 +241,7 @@ fun SyntaxHighlightedEditor(
                         }
                         IconButton(
                             onClick = {
-                                val suggested = "diagram.txt"
+                                val suggested = generateAutoFilename()
                                 saveTxtLauncher.launch(suggested)
                             },
                             modifier = Modifier.size(40.dp)
@@ -592,6 +595,12 @@ sequenceDiagram
         }
     }
 }
+private fun generateAutoFilename(): String {
+    val formatter = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
+    val timestamp = formatter.format(java.util.Date())
+    return "mermaid_$timestamp.txt"
+}
+
 
 /**
  * Apply basic syntax highlighting to Mermaid code
