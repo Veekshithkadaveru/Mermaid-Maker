@@ -49,7 +49,8 @@ import com.example.mermaidmaker.util.escapeForJs
 fun PreviewTab(
     content: String,
     previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
-    fileExportService: com.example.mermaidmaker.domain.service.FileExportService
+    fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
+    onShowSnackbar: (String) -> Unit
 ) {
     var zoomLevel by remember { mutableStateOf(100) }
     val isPreviewLoading by previewState.isLoading.collectAsState()
@@ -107,6 +108,7 @@ fun PreviewTab(
                                     fileExportService = fileExportService
                                 ) { success ->
                                     Log.d("MainEditorScreen", "PNG download result: $success")
+                            onShowSnackbar(if (success) "PNG exported successfully" else "Failed to export PNG")
                                 }
                             }
                         ) {

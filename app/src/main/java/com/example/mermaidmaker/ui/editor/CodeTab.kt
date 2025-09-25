@@ -8,12 +8,14 @@ import androidx.compose.ui.Modifier
 fun CodeTab(
     content: String,
     fontSize: Int,
-    onContentChanged: (String) -> Unit
+    onContentChanged: (String) -> Unit,
+    onShowSnackbar: (String) -> Unit
 ) {
     SyntaxHighlightedEditor(
         content = content,
         fontSize = fontSize,
         onContentChanged = onContentChanged,
+        onShowSnackbar = onShowSnackbar,
         modifier = Modifier.fillMaxSize()
     )
 }
