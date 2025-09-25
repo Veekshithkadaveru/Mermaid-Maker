@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.mermaidmaker.domain.model.DiagramType
+import com.example.mermaidmaker.ui.common.rememberOrientationAwareMaxWidth
+import com.example.mermaidmaker.ui.common.rememberOrientationAwareMaxHeight
+import com.example.mermaidmaker.ui.common.rememberOrientationAwarePadding
 
 @Composable
 fun ExampleSelectionDialog(
@@ -40,13 +45,20 @@ fun ExampleSelectionDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = rememberOrientationAwareMaxWidth())
                 .padding(16.dp),
             shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 8.dp
         ) {
+            val contentPadding = rememberOrientationAwarePadding(
+                horizontalPortrait = 24.dp,
+                horizontalLandscape = 24.dp,
+                verticalPortrait = 24.dp,
+                verticalLandscape = 24.dp
+            )
             androidx.compose.foundation.layout.Column(
-                modifier = Modifier.padding(24.dp)
+                modifier = Modifier.padding(contentPadding)
             ) {
                 Text(
                     text = "Diagram examples",
@@ -56,7 +68,10 @@ fun ExampleSelectionDialog(
                 )
 
                 // Diagram type selection grid
+                val maxListHeight = rememberOrientationAwareMaxHeight()
+
                 LazyColumn(
+                    modifier = Modifier.heightIn(max = maxListHeight),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {

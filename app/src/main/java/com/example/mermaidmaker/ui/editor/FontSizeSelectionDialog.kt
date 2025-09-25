@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +29,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.mermaidmaker.ui.common.rememberOrientationAwareMaxHeight
+import com.example.mermaidmaker.ui.common.rememberCappedDialogWidth
+import com.example.mermaidmaker.ui.common.rememberOrientationAwarePadding
 
 @Composable
 fun FontSizeSelectionDialog(
@@ -45,14 +49,20 @@ fun FontSizeSelectionDialog(
     ) {
         Surface(
             modifier = Modifier
-                .width(320.dp)
+                .widthIn(max = rememberCappedDialogWidth(baseWidth = 320.dp))
                 .padding(4.dp),
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 8.dp
         ) {
+            val contentPadding = rememberOrientationAwarePadding(
+                horizontalPortrait = 8.dp,
+                horizontalLandscape = 8.dp,
+                verticalPortrait = 8.dp,
+                verticalLandscape = 8.dp
+            )
             androidx.compose.foundation.layout.Column(
-                modifier = Modifier.padding(4.dp)
+                modifier = Modifier.padding(contentPadding)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -82,8 +92,10 @@ fun FontSizeSelectionDialog(
                 // Font size options
                 val fontSizes = listOf(12, 14, 16, 18, 21, 24, 27, 30, 36)
 
+                val maxListHeight = rememberOrientationAwareMaxHeight()
+
                 LazyColumn(
-                    modifier = Modifier.heightIn(max = 468.dp),
+                    modifier = Modifier.heightIn(max = maxListHeight),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(fontSizes) { fontSize ->
