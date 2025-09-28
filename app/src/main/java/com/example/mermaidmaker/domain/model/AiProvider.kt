@@ -19,7 +19,7 @@ enum class AiProvider(
     GEMINI(
         displayName = "Google Gemini",
         apiKeyLabel = "Gemini API Key",
-        baseUrl = "https://generativelanguage.googleapis.com/v1/",
+        baseUrl = "https://generativelanguage.googleapis.com/v1beta/",
         supportedFeatures = setOf(
             AiFeature.TEXT_TO_DIAGRAM,
             AiFeature.TEMPLATE_GENERATION

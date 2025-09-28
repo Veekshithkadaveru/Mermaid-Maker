@@ -5,6 +5,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.Path
 
 /**
  * Gemini API service for validation and content generation
@@ -22,12 +23,12 @@ interface GeminiApiService {
     ): Response<GeminiModelsResponse>
 
     /**
-     * Generate content using Gemini
-     * Uses the generateContent endpoint with gemini-1.5-flash model
+     * Generate content using Gemini for the given model
      */
-    @POST("models/gemini-1.5-flash:generateContent")
+    @POST("models/{model}:generateContent")
     suspend fun generateContent(
         @Header("x-goog-api-key") apiKey: String,
+        @Path("model") model: String,
         @Body request: GeminiGenerateRequest
     ): Response<GeminiGenerateResponse>
 }
@@ -52,7 +53,7 @@ data class GeminiGenerateRequest(
 )
 
 data class GeminiContent(
-    val parts: List<GeminiPart>
+    val parts: List<GeminiPart>? = null
 )
 
 data class GeminiPart(
