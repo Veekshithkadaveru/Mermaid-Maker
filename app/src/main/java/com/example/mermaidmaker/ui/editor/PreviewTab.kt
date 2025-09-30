@@ -50,7 +50,8 @@ fun PreviewTab(
     content: String,
     previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
     fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
-    onShowSnackbar: (String) -> Unit
+    onShowSnackbar: (String) -> Unit,
+    onFixWithAi: (String) -> Unit = {}
 ) {
     var zoomLevel by remember { mutableStateOf(100) }
     val isPreviewLoading by previewState.isLoading.collectAsState()
@@ -176,7 +177,8 @@ fun PreviewTab(
                         modifier = Modifier
                             .fillMaxSize(),
                         showControls = false,
-                        zoomLevel = zoomLevel
+                        zoomLevel = zoomLevel,
+                        onFixWithAi = onFixWithAi
                     )
 
                     // Loading overlay for preview
@@ -221,7 +223,8 @@ fun FullScreenMermaidPreview(
     content: String,
     zoomLevel: Int,
     modifier: Modifier = Modifier,
-    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null
+    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null,
+    onFixWithAi: (String) -> Unit = {}
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     var isReady by remember { mutableStateOf(false) }
@@ -236,7 +239,7 @@ fun FullScreenMermaidPreview(
 
                 previewState?.setWebView(newWebView)
                 previewState?.setReady(true)
-            }, previewState = previewState)
+            }, previewState = previewState, onFixWithAi = onFixWithAi)
             newWebView
         },
         update = { wv ->
@@ -276,7 +279,8 @@ fun FullScreenMermaidPreview(
 fun setupFullScreenWebView(
     webView: WebView,
     onReady: () -> Unit,
-    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null
+    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null,
+    onFixWithAi: (String) -> Unit = {}
 ) {
     webView.apply {
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -315,6 +319,12 @@ fun setupFullScreenWebView(
                 Log.e("FullScreenMermaidPreview", "Render error: $error")
                 previewState?.setLoading(false)
                 previewState?.setError(error)
+            }
+
+            @android.webkit.JavascriptInterface
+            fun onFixWithAi(source: String) {
+                Log.d("FullScreenMermaidPreview", "Fix with AI requested, length=${'$'}{source.length}")
+                onFixWithAi(source)
             }
         }
 

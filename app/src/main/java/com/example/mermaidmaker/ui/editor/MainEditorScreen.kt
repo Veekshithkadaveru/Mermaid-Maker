@@ -284,6 +284,9 @@ fun MainEditorScreen(
                                     message = message
                                 )
                             }
+                        },
+                        onFixWithAi = { source ->
+                            viewModel.fixMermaidWithAi(source)
                         }
                     )
                 }

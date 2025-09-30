@@ -6,6 +6,7 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /**
  * Gemini API service for validation and content generation
@@ -19,7 +20,8 @@ interface GeminiApiService {
      */
     @GET("models")
     suspend fun validateApiKey(
-        @Header("x-goog-api-key") apiKey: String
+        @Header("x-goog-api-key") apiKey: String,
+        @Query("key") apiKeyQuery: String
     ): Response<GeminiModelsResponse>
 
     /**
@@ -29,7 +31,8 @@ interface GeminiApiService {
     suspend fun generateContent(
         @Header("x-goog-api-key") apiKey: String,
         @Path("model") model: String,
-        @Body request: GeminiGenerateRequest
+        @Body request: GeminiGenerateRequest,
+        @Query("key") apiKeyQuery: String
     ): Response<GeminiGenerateResponse>
 }
 

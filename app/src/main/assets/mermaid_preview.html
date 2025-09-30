@@ -223,6 +223,9 @@
             statusElement.style.display = 'none';
             loadingElement.style.display = 'none';
             
+            // Expose last error source globally for inline handlers
+            try { window.__lastErrorSource = (sourceText || lastSource || ''); } catch (e) { window.__lastErrorSource = ''; }
+
             // Rich error panel below preview
             const panel = document.createElement('div');
             panel.className = 'error-panel';
@@ -242,6 +245,7 @@
                             <li>Keep one statement per line and close all brackets.</li>
                             <li>Ensure identifiers match and arrows use valid syntax.</li>
                         </ul>
+                        <div class="ai"><button id="ai-fix-btn" type="button" onclick="try{if(window.Android&&window.Android.onFixWithAi){window.Android.onFixWithAi(window.__lastErrorSource||'');}}catch(e){}">Fix with AI</button></div>
                         <div class="muted">Tip: You can paste plain text and let AI shape it.</div>
                     </div>
                 </div>`;
@@ -253,6 +257,9 @@
                 existing.forEach(el => el.remove());
                 container.parentNode.insertBefore(panel, container.nextSibling);
             }
+            // Wire AI fix button if available
+            // Note: inline onclick handler is set on the button to avoid duplicate bindings
+
             // Hide preview container while error panel is shown
             setPreviewVisible(false);
             // No AI button; nothing to wire here
