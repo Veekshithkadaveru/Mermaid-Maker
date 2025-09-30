@@ -96,7 +96,7 @@ fun PreviewTab(
                     }
                 }
 
-                // Export/Share controls
+                // Export/Share controls + Fix with AI
                 if (content.isNotBlank()) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                         // PNG Download
@@ -137,6 +137,7 @@ fun PreviewTab(
                                 contentDescription = "Share PNG"
                             )
                         }
+
                     }
                 }
             }
@@ -169,12 +170,13 @@ fun PreviewTab(
                     modifier = Modifier
                         .fillMaxSize()
                 ) {
-                    FullScreenMermaidPreview(
+                    com.example.mermaidmaker.ui.preview.MermaidPreview(
                         content = content,
-                        zoomLevel = zoomLevel,
+                        state = previewState,
                         modifier = Modifier
                             .fillMaxSize(),
-                        previewState = previewState
+                        showControls = false,
+                        zoomLevel = zoomLevel
                     )
 
                     // Loading overlay for preview
@@ -324,7 +326,7 @@ fun setupFullScreenWebView(
                 request: WebResourceRequest?
             ): Boolean {
                 val url = request?.url?.toString() ?: return false
-                return !(url as String).startsWith("file:///android_asset/")
+                return !url.startsWith("file:///android_asset/")
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {

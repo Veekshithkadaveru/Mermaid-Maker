@@ -42,6 +42,7 @@ val useCaseModule = module {
     factory { UpdateDiagramUseCase(get()) }
     factory { UpdateTemplateUseCase(get()) }
     factory { GenerateAiDiagramUseCase(get(), get()) }
+    // FixMermaidCodeUseCase removed (handled in a future PR)
 
     // Infrastructure
     single { TemplateLoader(get()) }

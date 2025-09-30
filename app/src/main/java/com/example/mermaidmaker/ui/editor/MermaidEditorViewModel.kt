@@ -65,6 +65,8 @@ class MermaidEditorViewModel(
     private val _isAiAvailable = MutableStateFlow(false)
     val isAiAvailable: StateFlow<Boolean> = _isAiAvailable.asStateFlow()
 
+    // Removed AI fix state
+
     // Auto-save functionality
     private val _isAutoSaveEnabled = MutableStateFlow(true)
     val isAutoSaveEnabled: StateFlow<Boolean> = _isAutoSaveEnabled.asStateFlow()
@@ -467,6 +469,8 @@ class MermaidEditorViewModel(
     fun refreshAiAvailability() {
         checkAiAvailability()
     }
+
+    // Removed AI fix use case and method
 
     /**
      * Start auto-save timer

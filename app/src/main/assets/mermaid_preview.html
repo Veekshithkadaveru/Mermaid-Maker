@@ -34,15 +34,33 @@
         }
         
         .error {
-            padding: 8px 12px;
+            padding: 10px 12px;
             background-color: #ffebee;
-            border: 1px solid #f44336;
-            border-radius: 4px;
-            font-size: 12px;
-            color: #c62828;
+            border: 1px solid #ef5350;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #b71c1c;
             margin-bottom: 16px;
             display: none;
         }
+        .error .title { font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+        .error .details { opacity: 0.9; }
+        .error-panel { display:flex; gap:12px; background:#fff; border: 1px solid #ead5d5; border-radius:16px; padding:18px; box-shadow:0 6px 20px rgba(0,0,0,0.05); max-width:960px; margin:12px auto 0 auto; }
+        .error-panel .error-accent { width:6px; border-radius:8px; background: linear-gradient(180deg,#ef5350 0%, #ff7043 100%); }
+        .error-panel .panel-body { flex:1; min-width:0; }
+        .error-panel .panel-header { display:flex; align-items:center; gap:10px; margin:0 0 8px 0; }
+        .error-panel .panel-header .emoji { font-size:20px; line-height:1; }
+        .error-panel h1 { margin:0; color:#c62828; font-size:24px; font-weight:800; letter-spacing:0.2px; }
+        .error-panel .badge { background:#fdecee; color:#b71c1c; border:1px solid #f5b1b8; border-radius:999px; padding:4px 8px; font-size:12px; font-weight:700; }
+        .error-panel pre { white-space:pre-wrap; background:#fff7f7; border:1px dashed #f5b1b8; padding:12px; border-radius:8px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        .error-panel .suggestions { margin-top:16px; }
+        .error-panel .suggestions h2 { margin:0 0 8px 0; color:#ad2c2c; font-size:18px; font-weight:800; letter-spacing:0.2px; }
+        .error-panel ul { margin:0; padding-left:20px; }
+        .error-panel li { margin:6px 0; line-height:1.4; }
+        .error-panel code { background:#fdecee; border-radius:6px; padding:0 6px; }
+        .error-panel .ai { margin-top:12px; }
+        .error-panel .ai button { background-image: linear-gradient(135deg,#ef5350,#ff7043); color:#fff; border:none; padding:10px 14px; border-radius:999px; font-weight:700; letter-spacing:0.2px; box-shadow:0 4px 10px rgba(239,83,80,0.25); }
+        .error-panel .muted { margin-top:10px; color:#8a6e6e; font-size:12px; }
         
         .loading {
             padding: 8px 12px;
@@ -115,6 +133,7 @@
                 color: #666666;
             }
         }
+        /* Do not hide legitimate diagram content; only style preview container */
     </style>
 </head>
 <body>
@@ -192,14 +211,52 @@
             statusElement.style.display = 'block';
             errorElement.style.display = 'none';
             loadingElement.style.display = 'none';
+            // Remove any rich error panel on success/status
+            removeErrorPanel();
+            setPreviewVisible(true);
         }
         
-        function showError(message) {
-            errorElement.textContent = message;
-            errorElement.style.display = 'block';
+        function showError(message, sourceText) {
+            // Hide the small top error chip; we use only the rich panel
+            errorElement.innerHTML = '';
+            errorElement.style.display = 'none';
             statusElement.style.display = 'none';
             loadingElement.style.display = 'none';
             
+            // Rich error panel below preview
+            const panel = document.createElement('div');
+            panel.className = 'error-panel';
+            panel.innerHTML = `
+                <div class="error-accent"></div>
+                <div class="panel-body">
+                    <div class="panel-header">
+                        <div class="emoji">⚠️</div>
+                        <h1>Syntax Error</h1>
+                        <span class="badge">Mermaid</span>
+                    </div>
+                    <pre>${(sourceText || lastSource || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+                    <div class="suggestions">
+                        <h2>Suggestions</h2>
+                        <ul>
+                            <li>Start with a diagram type (e.g., <code>graph TD</code>, <code>sequenceDiagram</code>).</li>
+                            <li>Keep one statement per line and close all brackets.</li>
+                            <li>Ensure identifiers match and arrows use valid syntax.</li>
+                        </ul>
+                        <div class="muted">Tip: You can paste plain text and let AI shape it.</div>
+                    </div>
+                </div>`;
+            // Insert after preview container
+            const container = document.querySelector('.preview-container');
+            if (container && panel) {
+                // Remove existing sibling panels to avoid duplicates
+                const existing = container.parentNode.querySelectorAll('.error-panel');
+                existing.forEach(el => el.remove());
+                container.parentNode.insertBefore(panel, container.nextSibling);
+            }
+            // Hide preview container while error panel is shown
+            setPreviewVisible(false);
+            // No AI button; nothing to wire here
+
             // Notify Android about the error
             if (window.Android && window.Android.onRenderError) {
                 window.Android.onRenderError(message);
@@ -217,6 +274,8 @@
             statusElement.style.display = 'none';
             errorElement.style.display = 'none';
             loadingElement.style.display = 'none';
+            // Also remove any error panel when hiding messages
+            removeErrorPanel();
         }
 
         // Reset preview state (watchdog)
@@ -250,6 +309,44 @@
             return false;
         }
 
+        // Remove any Mermaid-injected global error SVGs (defensive cleanup)
+        function cleanUpMermaidErrorArtifacts() {
+            try {
+                const candidates = Array.from(document.querySelectorAll('body > svg, body > div > svg, svg'));
+                candidates.forEach(svg => {
+                    const hasErrorIcon = !!svg.querySelector?.('.error-icon');
+                    const hasErrorText = /Syntax error in text|No diagram type detected|mermaid version/i.test(svg.textContent || '');
+                    if (hasErrorIcon || hasErrorText) {
+                        const parent = svg.parentNode;
+                        if (parent && parent.id !== 'preview' && parent.id !== 'preview-scale') {
+                            parent.remove();
+                        } else if (svg && parent === document.body) {
+                            svg.remove();
+                        }
+                    }
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        // Remove any injected rich error panel
+        function removeErrorPanel() {
+            try {
+                const container = document.querySelector('.preview-container');
+                if (!container || !container.parentNode) return;
+                const existing = container.parentNode.querySelectorAll('.error-panel');
+                existing.forEach(el => el.remove());
+            } catch (e) { /* ignore */ }
+        }
+
+        // Toggle preview container visibility
+        function setPreviewVisible(visible) {
+            try {
+                const container = document.querySelector('.preview-container');
+                if (!container) return;
+                container.style.display = visible ? '' : 'none';
+            } catch (e) { /* ignore */ }
+        }
+
         // Recreate preview container DOM (force fresh shell)
         function forceRecreatePreview() {
             previewElement.innerHTML = '<div id="preview-scale"><div class="placeholder">Diagram preview will appear here</div></div>';
@@ -270,9 +367,13 @@
                 previewElement.innerHTML = '<div class="placeholder">Enter Mermaid syntax to see preview</div>';
                 hideAllMessages();
                 lastRenderedContent = source;
+                removeErrorPanel();
+                setPreviewVisible(true);
                 return;
             }
             
+            // Defensive cleanup before rendering
+            cleanUpMermaidErrorArtifacts();
             isRendering = true;
             showLoading();
             lastSource = source;
@@ -293,6 +394,25 @@
             try {
                 console.log('Rendering Mermaid diagram:', source.substring(0, 100) + '...');
                 
+                // Validate first to avoid Mermaid's huge error SVGs
+                try {
+                    if (typeof mermaid.parse === 'function') {
+                        await mermaid.parse(source);
+                    } else if (mermaid.mermaidAPI && typeof mermaid.mermaidAPI.parse === 'function') {
+                        await mermaid.mermaidAPI.parse(source);
+                    }
+                } catch (parseErr) {
+                    const message = (parseErr && (parseErr.str || parseErr.message)) || 'Invalid Mermaid syntax';
+                    showError(`Syntax error: ${message}`, source);
+                    // Keep preview area empty during errors; rich panel appears below
+                    previewElement.innerHTML = '<div id="preview-scale"></div>';
+                    if (window.Android && window.Android.onRenderError) {
+                        window.Android.onRenderError(message);
+                    }
+                    cleanUpMermaidErrorArtifacts();
+                    return;
+                }
+                
                 // Generate unique ID for this render (stable by hash to avoid mermaid caching glitches)
                 const diagramId = 'diagram_' + hashString(source);
                 lastContentHash = hashString(source);
@@ -301,7 +421,7 @@
                 // Ensure a clean renderer
                 try { mermaid.reset(); } catch (e) { /* ignore */ }
                 const { svg, bindFunctions } = await mermaid.render(diagramId, source);
-                
+
                 // Build scaled wrapper and normalize SVG sizing
                 previewElement.innerHTML = '';
                 const scaleWrapper = document.createElement('div');
@@ -329,6 +449,9 @@
                 // Show success status
                 showStatus(`Diagram rendered successfully (${svg.length} characters)`);
                 lastRenderedContent = source;
+                // Ensure any prior error panel is removed on success
+                removeErrorPanel();
+                setPreviewVisible(true);
                 
                 // Notify Android about successful render
                 if (window.Android && window.Android.onRenderSuccess) {
@@ -336,6 +459,8 @@
                 }
                 
                 console.log('Mermaid render complete');
+                // Final cleanup just in case
+                cleanUpMermaidErrorArtifacts();
                 
             } catch (error) {
                 console.error('Mermaid render error:', error);
@@ -344,13 +469,10 @@
                 const errorMessage = error.message || 'Failed to render diagram';
                 showError(`Syntax error: ${errorMessage}`);
                 
-                // Show placeholder with error
-                previewElement.innerHTML = `
-                    <div class="placeholder" style="color: #f44336;">
-                        <strong>Render Error</strong><br>
-                        ${errorMessage}
-                    </div>
-                `;
+                // Keep preview area empty during errors; rich panel appears below
+                previewElement.innerHTML = '<div id="preview-scale"></div>';
+                // Ensure Mermaid-injected artifacts are not visible
+                cleanUpMermaidErrorArtifacts();
                 
             } finally {
                 isRendering = false;

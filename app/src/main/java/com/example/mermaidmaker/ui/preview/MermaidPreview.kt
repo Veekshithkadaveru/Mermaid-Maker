@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,8 +38,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ErrorOutline
 import com.example.mermaidmaker.util.MemoryUtils
 import com.example.mermaidmaker.util.WebViewPngGenerator
 import com.example.mermaidmaker.util.escapeForJs
@@ -522,12 +532,14 @@ fun MermaidPreview(
     onRenderSuccess: (Int) -> Unit = {},
     theme: String = "default",
     showControls: Boolean = false,
-    zoomLevel: Int = 100
+    zoomLevel: Int = 100,
+    showComposeErrorOverlay: Boolean = false
 ) {
 
     val isReady by state.isReady.collectAsState()
     val isLoading by state.isLoading.collectAsState()
     val error by state.error.collectAsState()
+    var showErrorDetails by remember { mutableStateOf(false) }
 
     // JavaScript interface for communication with WebView
     val javascriptInterface = remember {
@@ -620,25 +632,71 @@ fun MermaidPreview(
             }
         }
 
-        // Error overlay
-        error?.let { errorMessage ->
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+        // Error overlay (optional; hidden by default to keep preview clean)
+        if (showComposeErrorOverlay) {
+            error?.let { errorMessage ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    Text(
-                        text = "⚠️ $errorMessage",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(12.dp)
-                    )
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ErrorOutline,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Syntax error in text",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = errorMessage,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                                        maxLines = if (showErrorDetails) Int.MAX_VALUE else 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                TextButton(onClick = { showErrorDetails = !showErrorDetails }) { Text(if (showErrorDetails) "Hide" else "Details") }
+                            }
+
+                            AnimatedVisibility(
+                                visible = showErrorDetails,
+                                enter = fadeIn() + expandVertically(),
+                                exit = fadeOut() + shrinkVertically()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 10.dp)
+                                ) {
+                                    SelectionContainer {
+                                        Text(
+                                            text = errorMessage,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -838,6 +896,7 @@ class MermaidPreviewJavaScriptInterface(
         Log.e("MermaidPreviewJS", "Render error: $error")
         onRenderError.invoke(error)
     }
+
 }
 
 /**

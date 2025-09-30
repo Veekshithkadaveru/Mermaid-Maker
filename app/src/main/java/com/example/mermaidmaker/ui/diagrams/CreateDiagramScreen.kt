@@ -73,6 +73,7 @@ fun CreateDiagramScreen(
     val selectedDiagramType by editorViewModel.selectedDiagramType.collectAsState()
     val availableTemplates by editorViewModel.availableTemplates.collectAsState()
     val editorContent by editorViewModel.editorContent.collectAsState()
+    // AI indicators removed for now (handled in a separate PR)
 
     // Load initial template when screen first loads
     LaunchedEffect(Unit) {
@@ -235,7 +236,8 @@ fun CreateDiagramScreen(
                                 content = editorContent,
                                 state = rememberMermaidPreviewState(),
                                 modifier = Modifier
-                                    .fillMaxSize()
+                                    .fillMaxSize(),
+                                showControls = false
                             )
                         }
                     }
