@@ -13,6 +13,7 @@ import com.example.mermaidmaker.domain.usecase.DeleteTemplateUseCase
 import com.example.mermaidmaker.domain.usecase.ExportDiagramUseCase
 import com.example.mermaidmaker.domain.usecase.ExportDiagramUseCaseImpl
 import com.example.mermaidmaker.domain.usecase.GenerateAiDiagramUseCase
+import com.example.mermaidmaker.domain.usecase.FixMermaidCodeUseCase
 import com.example.mermaidmaker.domain.usecase.GetAllDiagramsUseCase
 import com.example.mermaidmaker.domain.usecase.GetAllTemplatesUseCase
 import com.example.mermaidmaker.domain.usecase.GetBuiltInTemplatesUseCase
@@ -42,7 +43,7 @@ val useCaseModule = module {
     factory { UpdateDiagramUseCase(get()) }
     factory { UpdateTemplateUseCase(get()) }
     factory { GenerateAiDiagramUseCase(get(), get()) }
-    // FixMermaidCodeUseCase removed (handled in a future PR)
+    factory { FixMermaidCodeUseCase(get(), get()) }
 
     // Infrastructure
     single { TemplateLoader(get()) }

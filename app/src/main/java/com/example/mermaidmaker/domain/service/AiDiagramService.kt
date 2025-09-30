@@ -34,4 +34,13 @@ interface AiDiagramService {
         provider: AiProvider,
         apiKey: String
     ): Boolean
+
+    /**
+     * Attempts to fix invalid Mermaid syntax or convert rough text into valid Mermaid code.
+     */
+    suspend fun fixMermaidCode(
+        source: String,
+        provider: AiProvider,
+        apiKey: String
+    ): Result<String>
 }

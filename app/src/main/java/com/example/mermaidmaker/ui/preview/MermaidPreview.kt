@@ -530,6 +530,7 @@ fun MermaidPreview(
     state: MermaidPreviewState = rememberMermaidPreviewState(),
     onRenderError: (String) -> Unit = {},
     onRenderSuccess: (Int) -> Unit = {},
+    onFixWithAi: (String) -> Unit = {},
     theme: String = "default",
     showControls: Boolean = false,
     zoomLevel: Int = 100,
@@ -560,7 +561,8 @@ fun MermaidPreview(
                 state.setLoading(false)
                 state.setError(errorMessage)
                 onRenderError(errorMessage)
-            }
+            },
+            onFixWithAi = onFixWithAi
         )
     }
 
@@ -877,7 +879,8 @@ private fun setupMermaidPreviewWebView(
 class MermaidPreviewJavaScriptInterface(
     private val onWebViewReady: () -> Unit,
     private val onRenderSuccess: (Int) -> Unit,
-    private val onRenderError: (String) -> Unit
+    private val onRenderError: (String) -> Unit,
+    private val onFixWithAi: (String) -> Unit = {}
 ) {
     @JavascriptInterface
     fun onWebViewReady() {
@@ -897,6 +900,11 @@ class MermaidPreviewJavaScriptInterface(
         onRenderError.invoke(error)
     }
 
+    @JavascriptInterface
+    fun onFixWithAi(source: String) {
+        Log.d("MermaidPreviewJS", "Fix with AI requested, length=${source.length}")
+        onFixWithAi.invoke(source)
+    }
 }
 
 /**

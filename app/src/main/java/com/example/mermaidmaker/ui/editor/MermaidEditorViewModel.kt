@@ -28,6 +28,7 @@ class MermaidEditorViewModel(
     private val getTemplatesByTypeUseCase: GetTemplatesByTypeUseCase,
     private val diagramRepository: DiagramRepository,
     private val generateAiDiagramUseCase: GenerateAiDiagramUseCase,
+    private val fixMermaidCodeUseCase: com.example.mermaidmaker.domain.usecase.FixMermaidCodeUseCase,
     private val editorPreferences: com.example.mermaidmaker.data.local.prefs.EditorPreferences
 ) : ViewModel() {
 
@@ -65,7 +66,11 @@ class MermaidEditorViewModel(
     private val _isAiAvailable = MutableStateFlow(false)
     val isAiAvailable: StateFlow<Boolean> = _isAiAvailable.asStateFlow()
 
-    // Removed AI fix state
+    // AI fix state
+    private val _isAiFixing = MutableStateFlow(false)
+    val isAiFixing: StateFlow<Boolean> = _isAiFixing.asStateFlow()
+    private val _aiFixErrorMessage = MutableStateFlow<String?>(null)
+    val aiFixErrorMessage: StateFlow<String?> = _aiFixErrorMessage.asStateFlow()
 
     // Auto-save functionality
     private val _isAutoSaveEnabled = MutableStateFlow(true)
@@ -152,6 +157,29 @@ class MermaidEditorViewModel(
      */
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    /**
+     * Attempt to fix invalid Mermaid syntax using AI and update editor content on success
+     */
+    fun fixMermaidWithAi(source: String) {
+        viewModelScope.launch {
+            try {
+                _isAiFixing.value = true
+                _aiFixErrorMessage.value = null
+                val result = fixMermaidCodeUseCase(source)
+                if (result.isSuccess) {
+                    val fixed = result.getOrThrow()
+                    _editorContent.value = fixed
+                } else {
+                    _aiFixErrorMessage.value = result.exceptionOrNull()?.message
+                }
+            } catch (e: Exception) {
+                _aiFixErrorMessage.value = e.message ?: "Failed to fix with AI"
+            } finally {
+                _isAiFixing.value = false
+            }
+        }
     }
 
     /**

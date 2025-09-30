@@ -90,12 +90,91 @@ class AiDiagramServiceImpl(
                 }
 
                 AiProvider.GEMINI -> {
-                    val response = geminiApiService.validateApiKey(apiKey)
-                    response.isSuccessful
+                    // Avoid calling GET /models due to occasional 400s; treat non-empty key as tentatively valid.
+                    apiKey.isNotBlank()
                 }
             }
         } catch (e: Exception) {
             false
+        }
+    }
+
+    override suspend fun fixMermaidCode(
+        source: String,
+        provider: AiProvider,
+        apiKey: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            if (source.isBlank()) return@withContext Result.failure(IllegalArgumentException("Source cannot be empty"))
+
+            val systemPrompt = "You are a strict linter and fixer for Mermaid syntax. Return ONLY valid Mermaid code without explanations, no markdown fences. If the input is plain text, convert it into a clear diagram with the most appropriate Mermaid type. Ensure it compiles with mermaid.parse.".trim()
+            val userPrompt = "Fix or create valid Mermaid from this input. Keep it minimal and correct.\n\nINPUT:\n" + source
+
+            val raw = when (provider) {
+                AiProvider.OPENAI -> {
+                    val request = ChatCompletionRequest(
+                        model = "gpt-4o-mini",
+                        messages = listOf(
+                            ChatMessage("system", systemPrompt),
+                            ChatMessage("user", userPrompt)
+                        ),
+                        max_tokens = 1200,
+                        temperature = 0.2
+                    )
+                    val response = openAiApiService.generateDiagram("Bearer $apiKey", request)
+                    if (!response.isSuccessful) throw HttpException(response)
+                    response.body()?.choices?.firstOrNull()?.message?.content
+                        ?: throw Exception("Empty response from OpenAI for fix")
+                }
+                AiProvider.GEMINI -> {
+                    val combined = "$systemPrompt\n\n$userPrompt"
+                    val request = GeminiGenerateRequest(
+                        contents = listOf(GeminiContent(parts = listOf(GeminiPart(text = combined)))),
+                        generationConfig = GeminiGenerationConfig(
+                            temperature = 0.2,
+                            maxOutputTokens = 800
+                        )
+                    )
+                    // Reuse model preference logic to get a working model
+                    val available = try { getGeminiModelsSupportingGenerateContent(apiKey) } catch (_: Exception) { emptyList() }
+                    val preference = listOf(
+                        // Prefer v1beta-compatible models first
+                        "gemini-1.5-flash",
+                        "gemini-1.5-flash-8b",
+                        "gemini-1.5-flash-002",
+                        "gemini-1.5-flash-001",
+                        // Then try 2.x
+                        "gemini-2.0-flash-001",
+                        "gemini-2.0-flash",
+                        "gemini-2.5-flash"
+                    )
+                    val models = if (available.isNotEmpty()) {
+                        (preference.filter { it in available } + available).distinct()
+                    } else preference
+                    var text: String? = null
+                    for (model in models) {
+                        val resp = geminiApiService.generateContent(apiKey, model, request, apiKey)
+                        if (!resp.isSuccessful) continue
+                        val parts = resp.body()?.candidates?.firstOrNull()?.content?.parts
+                        text = parts?.firstOrNull()?.text
+                        if (!text.isNullOrBlank()) break
+                    }
+                    text ?: throw Exception("Empty response from Gemini for fix")
+                }
+            }
+
+            val mermaid = responseProcessor.extractMermaidCode(raw)
+            Result.success(mermaid)
+        } catch (e: InvalidMermaidException) {
+            Result.failure(Exception("AI returned invalid Mermaid: ${e.message}"))
+        } catch (e: HttpException) {
+            Result.failure(Exception("API error (${e.code()}): ${e.message()}"))
+        } catch (e: SocketTimeoutException) {
+            Result.failure(Exception("Request timed out. Please try again."))
+        } catch (e: IOException) {
+            Result.failure(Exception("Network error. Please check your internet connection."))
+        } catch (e: Exception) {
+            Result.failure(Exception("Unexpected error: ${e.message}"))
         }
     }
 
@@ -186,20 +265,22 @@ class AiDiagramServiceImpl(
 
         // Prefer lighter/cheaper models first
         val preferenceOrder = listOf(
-            "gemini-2.5-flash",
-            "gemini-2.0-flash-001",
-            "gemini-2.0-flash",
+            // Prefer v1beta-compatible 1.5 models first
+            "gemini-1.5-flash",
             "gemini-1.5-flash-8b",
             "gemini-1.5-flash-002",
             "gemini-1.5-flash-001",
-            "gemini-1.5-flash",
+            "gemini-1.5-pro-002",
+            "gemini-1.5-pro-001",
+            "gemini-1.5-pro",
+            // Then try 2.x families
+            "gemini-2.0-flash-001",
+            "gemini-2.0-flash",
+            "gemini-2.5-flash",
             "gemini-2.5-pro",
             "gemini-2.5-pro-preview-06-05",
             "gemini-2.5-pro-preview-05-06",
-            "gemini-2.5-pro-preview-03-25",
-            "gemini-1.5-pro-002",
-            "gemini-1.5-pro-001",
-            "gemini-1.5-pro"
+            "gemini-2.5-pro-preview-03-25"
         )
 
         val modelsToTry = if (availableModels.isNotEmpty()) {
@@ -213,7 +294,7 @@ class AiDiagramServiceImpl(
         var lastError: HttpException? = null
         for (model in modelsToTry) {
             Log.d(TAG, "Trying Gemini model: $model")
-            val response = geminiApiService.generateContent(apiKey, model, request)
+                    val response = geminiApiService.generateContent(apiKey, model, request, apiKey)
 
             if (!response.isSuccessful) {
                 val httpEx = HttpException(response)
@@ -226,7 +307,7 @@ class AiDiagramServiceImpl(
                     val retryMs = parseRetryAfterMs(retryAfterHeader) ?: 1500L
                     Log.w(TAG, "Received ${response.code()} for $model. Retrying after ${retryMs}ms once, then moving to next model")
                     delay(retryMs)
-                    val retryResponse = geminiApiService.generateContent(apiKey, model, request)
+                    val retryResponse = geminiApiService.generateContent(apiKey, model, request, apiKey)
                     if (!retryResponse.isSuccessful) {
                         Log.w(TAG, "Retry for $model returned ${retryResponse.code()}, moving to next model")
                         continue
@@ -263,19 +344,8 @@ class AiDiagramServiceImpl(
     }
 
     private suspend fun getGeminiModelsSupportingGenerateContent(apiKey: String): List<String> {
-        val response = geminiApiService.validateApiKey(apiKey)
-        if (!response.isSuccessful) return emptyList()
-        val body = response.body() ?: return emptyList()
-        val result = mutableListOf<String>()
-        body.models?.forEach { model ->
-            val name = model.name ?: return@forEach
-            val shortName = name.removePrefix("models/")
-            val methods = model.supportedGenerationMethods ?: emptyList()
-            if (methods.contains("generateContent")) {
-                result.add(shortName)
-            }
-        }
-        return result
+        // Return empty to use the built-in preference order without hitting the models endpoint.
+        return emptyList()
     }
 
     /**

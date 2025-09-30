@@ -113,7 +113,7 @@ class ApiKeyValidationServiceImpl(
     private suspend fun validateGeminiKey(apiKey: String): Boolean {
         return try {
             Log.d(TAG, "Making HTTP request to Gemini API...")
-            val response = geminiApiService.validateApiKey(apiKey)
+            val response = geminiApiService.validateApiKey(apiKey, apiKey)
             val isSuccessful = response.isSuccessful
             
             Log.d(TAG, "Gemini response received - Code: ${response.code()}, Success: $isSuccessful")

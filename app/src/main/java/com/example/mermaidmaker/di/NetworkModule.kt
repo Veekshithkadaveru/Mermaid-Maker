@@ -29,21 +29,8 @@ val networkModule = module {
             redactHeader("Api-Key")
             redactHeader("x-goog-api-key")
         }
-        val redactingInterceptor = Interceptor { chain ->
-            val original = chain.request()
-            val url: HttpUrl = original.url
-            val newUrlBuilder = url.newBuilder()
-            if (url.queryParameterNames.contains("key")) {
-                newUrlBuilder.setQueryParameter("key", "REDACTED")
-            }
-            val newRequest = original.newBuilder()
-                .url(newUrlBuilder.build())
-                .build()
-            chain.proceed(newRequest)
-        }
-
         OkHttpClient.Builder()
-            .addInterceptor(redactingInterceptor)
+            // Do not mutate outgoing requests; rely on header redaction only
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
