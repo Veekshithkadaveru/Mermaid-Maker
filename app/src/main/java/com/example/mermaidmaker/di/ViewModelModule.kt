@@ -17,13 +17,15 @@ val viewModelModule = module {
         val gen: com.example.mermaidmaker.domain.usecase.GenerateAiDiagramUseCase = get()
         val fix: com.example.mermaidmaker.domain.usecase.FixMermaidCodeUseCase = get()
         val prefs: com.example.mermaidmaker.data.local.prefs.EditorPreferences = get()
+        val fileExport: com.example.mermaidmaker.domain.service.FileExportService = get()
         val vm: MermaidEditorViewModel = MermaidEditorViewModel(
             builtIn,
             byType,
             repo,
             gen,
             fix,
-            prefs
+            prefs,
+            fileExport
         )
         vm
     }

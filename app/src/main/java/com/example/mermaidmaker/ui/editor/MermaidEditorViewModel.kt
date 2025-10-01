@@ -29,7 +29,8 @@ class MermaidEditorViewModel(
     private val diagramRepository: DiagramRepository,
     private val generateAiDiagramUseCase: GenerateAiDiagramUseCase,
     private val fixMermaidCodeUseCase: com.example.mermaidmaker.domain.usecase.FixMermaidCodeUseCase,
-    private val editorPreferences: com.example.mermaidmaker.data.local.prefs.EditorPreferences
+    private val editorPreferences: com.example.mermaidmaker.data.local.prefs.EditorPreferences,
+    private val fileExportService: com.example.mermaidmaker.domain.service.FileExportService
 ) : ViewModel() {
 
     private val _editorContent = MutableStateFlow("")
@@ -78,6 +79,16 @@ class MermaidEditorViewModel(
 
     private val _lastAutoSaveTime = MutableStateFlow<Long?>(null)
     val lastAutoSaveTime: StateFlow<Long?> = _lastAutoSaveTime.asStateFlow()
+
+    // PNG export state
+    private val _isExportingPng = MutableStateFlow(false)
+    val isExportingPng: StateFlow<Boolean> = _isExportingPng.asStateFlow()
+
+    private val _isSharingPng = MutableStateFlow(false)
+    val isSharingPng: StateFlow<Boolean> = _isSharingPng.asStateFlow()
+
+    private val _pngExportResult = MutableStateFlow<Boolean?>(null)
+    val pngExportResult: StateFlow<Boolean?> = _pngExportResult.asStateFlow()
 
     private var autoSaveJob: Job? = null
     private var lastContentSnapshot = ""
@@ -588,6 +599,75 @@ class MermaidEditorViewModel(
                 performAutoSave()
             }
         }
+    }
+
+    /**
+     * Export current diagram as PNG
+     */
+    fun exportDiagramAsPng(
+        previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
+        fileName: String = generateFileName("png")
+    ) {
+        viewModelScope.launch {
+            try {
+                _isExportingPng.value = true
+                _pngExportResult.value = null
+                
+                val success = previewState.exportPNG(fileName, fileExportService)
+                _pngExportResult.value = success
+                
+                Log.d(
+                    "MermaidEditorViewModel", 
+                    if (success) "PNG export successful" else "PNG export failed"
+                )
+            } catch (e: Exception) {
+                Log.e("MermaidEditorViewModel", "Error during PNG export", e)
+                _pngExportResult.value = false
+            } finally {
+                _isExportingPng.value = false
+            }
+        }
+    }
+
+    /**
+     * Share current diagram as PNG
+     */
+    fun shareDiagramAsPng(
+        previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
+        fileName: String = generateFileName("png")
+    ) {
+        viewModelScope.launch {
+            try {
+                _isSharingPng.value = true
+                
+                val success = previewState.sharePNG(fileName, fileExportService)
+                
+                Log.d(
+                    "MermaidEditorViewModel", 
+                    if (success) "PNG share successful" else "PNG share failed"
+                )
+            } catch (e: Exception) {
+                Log.e("MermaidEditorViewModel", "Error during PNG share", e)
+            } finally {
+                _isSharingPng.value = false
+            }
+        }
+    }
+
+    /**
+     * Clear PNG export result state
+     */
+    fun clearPngExportResult() {
+        _pngExportResult.value = null
+    }
+
+    /**
+     * Generate filename for exports
+     */
+    private fun generateFileName(extension: String): String {
+        val title = _diagramTitle.value.takeIf { it.isNotBlank() } ?: "diagram"
+        val sanitizedTitle = title.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+        return "${sanitizedTitle}.${extension}"
     }
 
     override fun onCleared() {

@@ -61,6 +61,9 @@ fun MainEditorScreen(
     val isAiAvailable by viewModel.isAiAvailable.collectAsState()
     val isAutoSaveEnabled by viewModel.isAutoSaveEnabled.collectAsState()
     val lastAutoSaveTime by viewModel.lastAutoSaveTime.collectAsState()
+    val isExportingPng by viewModel.isExportingPng.collectAsState()
+    val isSharingPng by viewModel.isSharingPng.collectAsState()
+    val pngExportResult by viewModel.pngExportResult.collectAsState()
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -133,6 +136,17 @@ fun MainEditorScreen(
     LaunchedEffect(isAiGenerating) {
         if (!isAiGenerating && editorContent.isNotBlank() && selectedTabIndex == 0) {
             selectedTabIndex = 1 // Switch to Code tab
+        }
+    }
+
+    // Show PNG export result feedback
+    LaunchedEffect(pngExportResult) {
+        pngExportResult?.let { success ->
+            val message = if (success) "PNG exported successfully" else "Failed to export PNG"
+            snackbarScope.launch {
+                snackbarHostState.showSnackbar(message)
+            }
+            viewModel.clearPngExportResult()
         }
     }
 
@@ -287,7 +301,15 @@ fun MainEditorScreen(
                         },
                         onFixWithAi = { source ->
                             viewModel.fixMermaidWithAi(source)
-                        }
+                        },
+                        onExportPng = {
+                            viewModel.exportDiagramAsPng(previewState)
+                        },
+                        onSharePng = {
+                            viewModel.shareDiagramAsPng(previewState)
+                        },
+                        isExportingPng = isExportingPng,
+                        isSharingPng = isSharingPng
                     )
                 }
             }

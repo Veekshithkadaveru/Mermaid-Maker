@@ -228,6 +228,89 @@ class MermaidPreviewState {
     }
 
     /**
+     * Export rendered diagram as PNG
+     */
+    suspend fun exportPNG(
+        fileName: String = "diagram.png",
+        fileExportService: com.example.mermaidmaker.domain.service.FileExportService
+    ): Boolean {
+        val currentWebView = webView ?: return false
+        
+        if (!_isReady.value) {
+            Log.e("MermaidPreview", "WebView not ready for PNG export")
+            return false
+        }
+
+        Log.d("MermaidPreview", "Starting PNG export")
+        
+        return try {
+            val pngData = pngGenerator.generatePng(currentWebView, _isReady.value)
+            if (pngData != null) {
+                var exportResult = false
+                fileExportService.exportPng(pngData, fileName) { uri ->
+                    exportResult = uri != null
+                    Log.d(
+                        "MermaidPreview",
+                        if (exportResult) "PNG exported successfully to: $uri" else "PNG export failed"
+                    )
+                }
+                exportResult
+            } else {
+                Log.e("MermaidPreview", "Failed to generate PNG data")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e("MermaidPreview", "Error during PNG export", e)
+            false
+        }
+    }
+
+    /**
+     * Share rendered diagram as PNG
+     */
+    suspend fun sharePNG(
+        fileName: String = "diagram.png",
+        fileExportService: com.example.mermaidmaker.domain.service.FileExportService
+    ): Boolean {
+        val currentWebView = webView ?: return false
+        
+        if (!_isReady.value) {
+            Log.e("MermaidPreview", "WebView not ready for PNG share")
+            return false
+        }
+
+        Log.d("MermaidPreview", "Starting PNG share")
+        
+        return try {
+            val pngData = pngGenerator.generatePng(currentWebView, _isReady.value)
+            if (pngData != null) {
+                val shareResult = fileExportService.sharePng(pngData, fileName)
+                Log.d(
+                    "MermaidPreview",
+                    if (shareResult) "PNG share initiated successfully" else "PNG share failed"
+                )
+                shareResult
+            } else {
+                Log.e("MermaidPreview", "Failed to generate PNG data for sharing")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e("MermaidPreview", "Error during PNG share", e)
+            false
+        }
+    }
+
+    /**
+     * Get current WebView for external PNG operations
+     */
+    fun getWebView(): WebView? = webView
+
+    /**
+     * Check if WebView is ready for export operations
+     */
+    fun isWebViewReady(): Boolean = _isReady.value
+
+    /**
      * Share rendered SVG using FileExportService
      */
     fun shareSVG(
