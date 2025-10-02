@@ -4,6 +4,7 @@ import com.example.mermaidmaker.data.database.DatabaseSeeder
 import com.example.mermaidmaker.data.service.AiDiagramServiceImpl
 import com.example.mermaidmaker.data.service.FileExportServiceImpl
 import com.example.mermaidmaker.data.template.TemplateLoader
+import com.example.mermaidmaker.util.WebViewPngGenerator
 import com.example.mermaidmaker.domain.service.AiDiagramService
 import com.example.mermaidmaker.domain.service.FileExportService
 import com.example.mermaidmaker.domain.usecase.CreateDiagramUseCase
@@ -12,6 +13,7 @@ import com.example.mermaidmaker.domain.usecase.DeleteDiagramUseCase
 import com.example.mermaidmaker.domain.usecase.DeleteTemplateUseCase
 import com.example.mermaidmaker.domain.usecase.ExportDiagramUseCase
 import com.example.mermaidmaker.domain.usecase.ExportDiagramUseCaseImpl
+import com.example.mermaidmaker.domain.usecase.ExportPngUseCase
 import com.example.mermaidmaker.domain.usecase.GenerateAiDiagramUseCase
 import com.example.mermaidmaker.domain.usecase.FixMermaidCodeUseCase
 import com.example.mermaidmaker.domain.usecase.GetAllDiagramsUseCase
@@ -44,8 +46,10 @@ val useCaseModule = module {
     factory { UpdateTemplateUseCase(get()) }
     factory { GenerateAiDiagramUseCase(get(), get()) }
     factory { FixMermaidCodeUseCase(get(), get()) }
+    factory { ExportPngUseCase(get(), get()) }
 
     // Infrastructure
     single { TemplateLoader(get()) }
     single { DatabaseSeeder(androidContext(), get(), get()) }
+    single { WebViewPngGenerator() }
 }

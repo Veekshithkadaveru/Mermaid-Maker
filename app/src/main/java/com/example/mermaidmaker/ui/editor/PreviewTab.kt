@@ -51,7 +51,11 @@ fun PreviewTab(
     previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
     fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
     onShowSnackbar: (String) -> Unit,
-    onFixWithAi: (String) -> Unit = {}
+    onFixWithAi: (String) -> Unit = {},
+    onExportPng: () -> Unit = {},
+    onSharePng: () -> Unit = {},
+    isExportingPng: Boolean = false,
+    isSharingPng: Boolean = false
 ) {
     var zoomLevel by remember { mutableStateOf(100) }
     val isPreviewLoading by previewState.isLoading.collectAsState()
@@ -104,19 +108,21 @@ fun PreviewTab(
                         IconButton(
                             onClick = {
                                 Log.d("MainEditorScreen", "PNG Download button clicked")
-                                previewState.exportPNG(
-                                    fileName = "mermaid_diagram.png",
-                                    fileExportService = fileExportService
-                                ) { success ->
-                                    Log.d("MainEditorScreen", "PNG download result: $success")
-                            onShowSnackbar(if (success) "PNG exported successfully" else "Failed to export PNG")
-                                }
-                            }
+                                onExportPng()
+                            },
+                            enabled = !isExportingPng
                         ) {
-                            androidx.compose.foundation.Image(
-                                painter = rememberVectorPainter(image = Icons.Filled.FileDownload),
-                                contentDescription = "Download PNG"
-                            )
+                            if (isExportingPng) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                androidx.compose.foundation.Image(
+                                    painter = rememberVectorPainter(image = Icons.Filled.FileDownload),
+                                    contentDescription = "Download PNG"
+                                )
+                            }
                         }
 
                         Spacer(Modifier.width(8.dp))
@@ -125,18 +131,21 @@ fun PreviewTab(
                         IconButton(
                             onClick = {
                                 Log.d("MainEditorScreen", "PNG Share button clicked")
-                                previewState.sharePNG(
-                                    fileName = "mermaid_diagram.png",
-                                    fileExportService = fileExportService
-                                ) { success ->
-                                    Log.d("MainEditorScreen", "PNG share result: $success")
-                                }
-                            }
+                                onSharePng()
+                            },
+                            enabled = !isSharingPng
                         ) {
-                            androidx.compose.foundation.Image(
-                                painter = rememberVectorPainter(image = Icons.Filled.Share),
-                                contentDescription = "Share PNG"
-                            )
+                            if (isSharingPng) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                androidx.compose.foundation.Image(
+                                    painter = rememberVectorPainter(image = Icons.Filled.Share),
+                                    contentDescription = "Share PNG"
+                                )
+                            }
                         }
 
                     }
