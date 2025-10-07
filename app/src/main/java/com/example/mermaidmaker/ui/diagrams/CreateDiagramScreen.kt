@@ -50,6 +50,8 @@ import com.example.mermaidmaker.ui.editor.MermaidEditorViewModel
 import com.example.mermaidmaker.ui.editor.rememberMermaidEditorState
 import com.example.mermaidmaker.ui.preview.MermaidPreview
 import com.example.mermaidmaker.ui.preview.rememberMermaidPreviewState
+import com.example.mermaidmaker.ui.components.ProfessionalTopBar
+import com.example.mermaidmaker.ui.theme.Spacing
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -85,20 +87,16 @@ fun CreateDiagramScreen(
     // Open/Save actions moved into editor header
 
     Scaffold(
+        topBar = { ProfessionalTopBar(title = "New Diagram") },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(Spacing.lg)
         ) {
-            // Header
-            Text(
-                text = "New Diagram",
-                style = MaterialTheme.typography.headlineSmall
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
             // Title input
             OutlinedTextField(
@@ -109,14 +107,14 @@ fun CreateDiagramScreen(
                 placeholder = { Text("Enter a descriptive title") },
                 singleLine = true
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
             // Diagram type selector
             Text(
                 text = "Diagram Type",
                 style = MaterialTheme.typography.titleMedium
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
 
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -134,7 +132,7 @@ fun CreateDiagramScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
             // Template selector
             if (availableTemplates.isNotEmpty()) {
@@ -142,7 +140,7 @@ fun CreateDiagramScreen(
                     text = "Quick Templates",
                     style = MaterialTheme.typography.titleMedium
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.sm))
 
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -174,7 +172,7 @@ fun CreateDiagramScreen(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(Spacing.md))
             }
 
             // File actions removed; handled in editor header
@@ -244,7 +242,7 @@ fun CreateDiagramScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
             // Create button
             Button(
@@ -285,7 +283,7 @@ fun CreateDiagramScreen(
                         modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Spacing.sm))
                     Text("Creating...")
                 } else {
                     Text("Create Diagram")

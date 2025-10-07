@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -27,6 +28,11 @@ import com.example.mermaidmaker.ui.home.HomeScreen
 import com.example.mermaidmaker.ui.preview.MermaidPreviewTest
 import com.example.mermaidmaker.ui.settings.ApiKeyScreen
 import com.example.mermaidmaker.ui.theme.MermaidMakerTheme
+import com.example.mermaidmaker.ui.components.BottomNavItem
+import com.example.mermaidmaker.ui.components.ProfessionalBottomNavigation
+import com.example.mermaidmaker.ui.components.ProfessionalScaffold
+import com.example.mermaidmaker.ui.components.ProfessionalTopAppBar
+import com.example.mermaidmaker.ui.components.ProfessionalHomeTopBar
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,14 +46,56 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainApp() {
     val navController = rememberNavController()
-    
-    Scaffold(
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    val items = listOf(
+        BottomNavItem("editor", "Editor", Icons.Filled.Add),
+        BottomNavItem("home", "Home", Icons.Filled.Home),
+        BottomNavItem("settings", "Settings", Icons.Filled.Settings)
+    )
+
+    // Normalize selection for nested editor routes
+    val selectedTopRoute = when {
+        currentRoute?.startsWith("editor") == true -> "editor"
+        else -> currentRoute
+    }
+
+    ProfessionalScaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            when (selectedTopRoute) {
+                "home" -> ProfessionalHomeTopBar()
+                "settings" -> ProfessionalTopAppBar(title = "Settings")
+                "editor" -> ProfessionalTopAppBar(title = "Mermaid Maker")
+                else -> {}
+            }
+        },
         bottomBar = {
-            BottomNavigation(navController = navController)
+            ProfessionalBottomNavigation(
+                items = items,
+                selectedRoute = selectedTopRoute,
+                onNavigate = { route ->
+                    navController.navigate(route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            if (selectedTopRoute == "home") {
+                FloatingActionButton(onClick = { navController.navigate("create") }) {
+                    Icon(Icons.Filled.Add, contentDescription = "Create")
+                }
+            }
         }
     ) { innerPadding ->
         NavHost(
@@ -79,37 +127,6 @@ fun MainApp() {
             composable("preview_test") {
                 MermaidPreviewTest()
             }
-        }
-    }
-}
-
-@Composable
-fun BottomNavigation(navController: NavHostController) {
-    val items = listOf(
-        BottomNavItem("editor", "Editor", Icons.Filled.Add),
-        BottomNavItem("home", "Home", Icons.Filled.Home),
-        BottomNavItem("settings", "Settings", Icons.Filled.Settings)
-    )
-    
-    NavigationBar {
-        val navBackStackEntry by navController.currentBackStackEntryAsState()
-        val currentDestination = navBackStackEntry?.destination
-        
-        items.forEach { item ->
-            NavigationBarItem(
-                icon = { Icon(item.icon, contentDescription = item.title) },
-                label = { Text(item.title) },
-                selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
-                onClick = {
-                    navController.navigate(item.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }
-            )
         }
     }
 }
@@ -189,9 +206,3 @@ fun SettingsScreen(navController: NavHostController? = null) {
         }
     }
 }
-
-data class BottomNavItem(
-    val route: String,
-    val title: String,
-    val icon: ImageVector
-)

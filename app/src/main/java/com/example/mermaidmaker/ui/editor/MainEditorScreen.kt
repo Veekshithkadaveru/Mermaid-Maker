@@ -13,7 +13,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -36,6 +35,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.mermaidmaker.ui.ai.AiGenerationTab
+import com.example.mermaidmaker.ui.components.ProfessionalSnackbarHost
 import com.example.mermaidmaker.ui.preview.rememberMermaidPreviewState
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -59,6 +59,8 @@ fun MainEditorScreen(
     val isAiGenerating by viewModel.isAiGenerating.collectAsState()
     val aiErrorMessage by viewModel.aiErrorMessage.collectAsState()
     val isAiAvailable by viewModel.isAiAvailable.collectAsState()
+    val isAiFixing by viewModel.isAiFixing.collectAsState()
+    val aiFixErrorMessage by viewModel.aiFixErrorMessage.collectAsState()
     val isAutoSaveEnabled by viewModel.isAutoSaveEnabled.collectAsState()
     val lastAutoSaveTime by viewModel.lastAutoSaveTime.collectAsState()
     val isExportingPng by viewModel.isExportingPng.collectAsState()
@@ -139,6 +141,13 @@ fun MainEditorScreen(
         }
     }
 
+    // Auto-navigate to Code tab when AI fix completes successfully
+    LaunchedEffect(isAiFixing) {
+        if (!isAiFixing && editorContent.isNotBlank() && selectedTabIndex != 1) {
+            selectedTabIndex = 1
+        }
+    }
+
     // Show PNG export result feedback
     LaunchedEffect(pngExportResult) {
         pngExportResult?.let { success ->
@@ -152,21 +161,6 @@ fun MainEditorScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Compact Top App Bar
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shadowElevation = 2.dp
-            ) {
-                Text(
-                    text = "Mermaid Maker",
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
 
             // Tab Row
             TabRow(
@@ -389,10 +383,23 @@ fun MainEditorScreen(
         }
 
         // Snackbar host at bottom
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        ProfessionalSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+    }
+    // Show Fix with AI error messages
+    LaunchedEffect(aiFixErrorMessage) {
+        aiFixErrorMessage?.let { msg ->
+            snackbarScope.launch {
+                snackbarHostState.showSnackbar(message = msg)
+            }
+        }
+    }
+
+    // Full-screen AI fixing overlay
+    if (isAiFixing) {
+        FullScreenAiLoadingOverlay()
     }
 }
 

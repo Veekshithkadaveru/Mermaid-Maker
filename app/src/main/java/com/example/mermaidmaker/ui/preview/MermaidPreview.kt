@@ -112,6 +112,13 @@ class MermaidPreviewState {
      * Render Mermaid diagram with the given source
      */
     fun renderDiagram(source: String, debounced: Boolean = true) {
+        // Ensure WebView interactions occur on the main thread
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                renderDiagram(source, debounced)
+            }
+            return
+        }
         webView?.let { webView ->
             if (!_isReady.value) {
                 Log.w("MermaidPreview", "WebView not ready, queueing content for render")
@@ -626,24 +633,31 @@ fun MermaidPreview(
     var showErrorDetails by remember { mutableStateOf(false) }
 
     // JavaScript interface for communication with WebView
+    val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
     val javascriptInterface = remember {
         MermaidPreviewJavaScriptInterface(
             onWebViewReady = {
                 Log.d("MermaidPreview", "WebView ready")
-                state.setReady(true)
-                state.setTheme(theme)
+                mainHandler.post {
+                    state.setReady(true)
+                    state.setTheme(theme)
+                }
             },
             onRenderSuccess = { svgLength ->
                 Log.d("MermaidPreview", "Render success: $svgLength characters")
-                state.setLoading(false)
-                state.setError(null)
-                onRenderSuccess(svgLength)
+                mainHandler.post {
+                    state.setLoading(false)
+                    state.setError(null)
+                    onRenderSuccess(svgLength)
+                }
             },
             onRenderError = { errorMessage ->
                 Log.e("MermaidPreview", "Render error: $errorMessage")
-                state.setLoading(false)
-                state.setError(errorMessage)
-                onRenderError(errorMessage)
+                mainHandler.post {
+                    state.setLoading(false)
+                    state.setError(errorMessage)
+                    onRenderError(errorMessage)
+                }
             },
             onFixWithAi = onFixWithAi
         )
