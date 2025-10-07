@@ -4,8 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,7 +18,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -25,6 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.mermaidmaker.ui.components.ProfessionalCard
+import com.example.mermaidmaker.ui.components.ProfessionalCardHeader
+import com.example.mermaidmaker.ui.components.CardVariant
+import com.example.mermaidmaker.ui.theme.Spacing
 import com.example.mermaidmaker.domain.model.MermaidDiagram
 import org.koin.androidx.compose.koinViewModel
 import java.time.format.DateTimeFormatter
@@ -36,21 +41,11 @@ fun HomeScreen(
 ) {
     val diagrams by viewModel.diagrams.collectAsState()
     
-    Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("create") }
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Create new diagram")
-            }
-        }
-    ) { paddingValues ->
-        HomeContent(
-            diagrams = diagrams,
-            modifier = Modifier.padding(paddingValues),
-            onDiagramClick = { diagramId -> navController.navigate("editor/$diagramId") }
-        )
-    }
+    HomeContent(
+        diagrams = diagrams,
+        modifier = Modifier,
+        onDiagramClick = { diagramId -> navController.navigate("editor/$diagramId") }
+    )
 }
 
 @Composable
@@ -79,7 +74,7 @@ private fun HomeContent(
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(16.dp),
+        modifier = modifier.fillMaxSize().padding(Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(diagrams, key = { it.id }) { diagram ->
@@ -96,22 +91,23 @@ private fun DiagramRow(
     diagram: MermaidDiagram,
     onDiagramClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onDiagramClick() }
+    ProfessionalCard(
+        modifier = Modifier.fillMaxWidth().clickable { onDiagramClick() },
+        variant = CardVariant.Elevated
     ) {
+        ProfessionalCardHeader(title = diagram.title)
+        Spacer(modifier = Modifier.height(Spacing.sm))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             Icon(Icons.Default.Star, contentDescription = null)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = diagram.title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = "Updated " + diagram.updatedAt.format(DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+            Text(
+                text = "Updated " + diagram.updatedAt.format(DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

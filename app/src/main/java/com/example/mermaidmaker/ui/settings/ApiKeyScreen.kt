@@ -31,6 +31,8 @@ import com.example.mermaidmaker.domain.model.ApiKeyConfiguration
 import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import com.example.mermaidmaker.ui.components.ProfessionalTopBar
+import com.example.mermaidmaker.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,25 +54,10 @@ fun ApiKeyScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(Spacing.lg)
     ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-            }
-            Text(
-                text = "AI API Keys",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
+        ProfessionalTopBar(title = "AI API Keys", onNavigationClick = onNavigateBack)
+        Spacer(modifier = Modifier.height(Spacing.md))
 
         // Info Card
         Card(
@@ -80,7 +67,7 @@ fun ApiKeyScreen(
             )
         ) {
             Column(
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(Spacing.lg)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically
@@ -98,7 +85,7 @@ fun ApiKeyScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.sm))
                 Text(
                     text = "Enter your own API keys to enable AI-powered diagram generation. Your keys are stored securely on your device and never shared.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -107,7 +94,7 @@ fun ApiKeyScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(Spacing.md))
 
         // Error/Success Messages
         uiState.error?.let { error ->
@@ -121,10 +108,10 @@ fun ApiKeyScreen(
                     text = error,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(Spacing.lg)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
         }
 
         uiState.successMessage?.let { message ->
@@ -138,10 +125,10 @@ fun ApiKeyScreen(
                     text = message,
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF1B5E20),
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(Spacing.lg)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
         }
 
         // API Key List
@@ -162,7 +149,7 @@ fun ApiKeyScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(Spacing.md))
             }
 
             // Clear all keys button
@@ -176,7 +163,7 @@ fun ApiKeyScreen(
                         )
                     ) {
                         Icon(Icons.Default.Delete, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(Spacing.sm))
                         Text("Clear All API Keys")
                     }
                 }

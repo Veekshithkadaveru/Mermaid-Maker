@@ -137,16 +137,16 @@ class AiDiagramServiceImpl(
                     )
                     // Reuse model preference logic to get a working model
                     val available = try { getGeminiModelsSupportingGenerateContent(apiKey) } catch (_: Exception) { emptyList() }
+                    // Prefer 2.x models first to avoid known 404s on some 1.5 endpoints under v1beta
                     val preference = listOf(
-                        // Prefer v1beta-compatible models first
+                        "gemini-2.0-flash-001",
+                        "gemini-2.0-flash",
+                        "gemini-2.5-flash",
+                        // Fallback to 1.5 family last
                         "gemini-1.5-flash",
                         "gemini-1.5-flash-8b",
                         "gemini-1.5-flash-002",
-                        "gemini-1.5-flash-001",
-                        // Then try 2.x
-                        "gemini-2.0-flash-001",
-                        "gemini-2.0-flash",
-                        "gemini-2.5-flash"
+                        "gemini-1.5-flash-001"
                     )
                     val models = if (available.isNotEmpty()) {
                         (preference.filter { it in available } + available).distinct()
@@ -157,6 +157,9 @@ class AiDiagramServiceImpl(
                         if (!resp.isSuccessful) continue
                         val parts = resp.body()?.candidates?.firstOrNull()?.content?.parts
                         text = parts?.firstOrNull()?.text
+                        if (!text.isNullOrBlank()) {
+                            Log.d(TAG, "Fix(Gemini) model=$model textLength=${text.length}")
+                        }
                         if (!text.isNullOrBlank()) break
                     }
                     text ?: throw Exception("Empty response from Gemini for fix")
