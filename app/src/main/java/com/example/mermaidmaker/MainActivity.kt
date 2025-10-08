@@ -4,35 +4,41 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavBackStackEntry
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
 import com.example.mermaidmaker.ui.diagrams.CreateDiagramScreen
 import com.example.mermaidmaker.ui.editor.MainEditorScreen
-import com.example.mermaidmaker.ui.home.HomeScreen
 import com.example.mermaidmaker.ui.preview.MermaidPreviewTest
 import com.example.mermaidmaker.ui.settings.ApiKeyScreen
 import com.example.mermaidmaker.ui.theme.MermaidMakerTheme
-import com.example.mermaidmaker.ui.components.BottomNavItem
-import com.example.mermaidmaker.ui.components.ProfessionalBottomNavigation
-import com.example.mermaidmaker.ui.components.ProfessionalScaffold
-import com.example.mermaidmaker.ui.components.ProfessionalTopAppBar
-import com.example.mermaidmaker.ui.components.ProfessionalHomeTopBar
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,11 +59,7 @@ fun MainApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val items = listOf(
-        BottomNavItem("editor", "Editor", Icons.Filled.Add),
-        BottomNavItem("home", "Home", Icons.Filled.Home),
-        BottomNavItem("settings", "Settings", Icons.Filled.Settings)
-    )
+    // Bottom navigation removed; Settings is accessible from the top app bar
 
     // Normalize selection for nested editor routes
     val selectedTopRoute = when {
@@ -65,36 +67,27 @@ fun MainApp() {
         else -> currentRoute
     }
 
-    ProfessionalScaffold(
+    Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             when (selectedTopRoute) {
-                "home" -> ProfessionalHomeTopBar()
-                "settings" -> ProfessionalTopAppBar(title = "Settings")
-                "editor" -> ProfessionalTopAppBar(title = "Mermaid Maker")
-                else -> {}
-            }
-        },
-        bottomBar = {
-            ProfessionalBottomNavigation(
-                items = items,
-                selectedRoute = selectedTopRoute,
-                onNavigate = { route ->
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+                "settings" -> TopAppBar(
+                    title = { Text("Settings") },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
-                }
-            )
-        },
-        floatingActionButton = {
-            if (selectedTopRoute == "home") {
-                FloatingActionButton(onClick = { navController.navigate("create") }) {
-                    Icon(Icons.Filled.Add, contentDescription = "Create")
-                }
+                )
+                "editor" -> TopAppBar(
+                    title = { Text("Mermaid Maker") },
+                    actions = {
+                        IconButton(onClick = { navController.navigate("settings") }) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        }
+                    }
+                )
+                else -> {}
             }
         }
     ) { innerPadding ->
@@ -109,9 +102,6 @@ fun MainApp() {
             composable("editor/{diagramId}") { backStackEntry ->
                 val diagramId = backStackEntry.arguments?.getString("diagramId")
                 MainEditorScreen(diagramId = diagramId)
-            }
-            composable("home") {
-                HomeScreen(navController = navController)
             }
             composable("create") {
                 CreateDiagramScreen(navController = navController)
@@ -168,7 +158,7 @@ fun SettingsScreen(navController: NavHostController? = null) {
                     onClick = { navController?.navigate("api_keys") },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.Settings, contentDescription = null)
+                    Icon(Icons.Filled.Settings, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Manage API Keys")
                 }
