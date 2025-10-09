@@ -87,6 +87,9 @@
             align-items: center;
             justify-content: center;
         }
+        /* Orientation modifiers (styling intentionally minimal; rendering adjusts via direction) */
+        .preview-container.vertical {}
+        .preview-container.horizontal {}
         
         #preview {
             width: 100%;
@@ -142,7 +145,7 @@
         <div id="error" class="error"></div>
         <div id="loading" class="loading">Rendering diagram...</div>
         
-        <div class="preview-container">
+        <div class="preview-container vertical" id="preview-container">
             <div id="preview">
                 <div class="placeholder">Diagram preview will appear here</div>
             </div>
@@ -204,6 +207,8 @@
         const errorElement = document.getElementById('error');
         const loadingElement = document.getElementById('loading');
         const previewElement = document.getElementById('preview');
+        const previewContainer = document.getElementById('preview-container');
+        let orientation = 'vertical'; // default
         
         // Utility functions
         function showStatus(message) {
@@ -348,15 +353,62 @@
         // Toggle preview container visibility
         function setPreviewVisible(visible) {
             try {
-                const container = document.querySelector('.preview-container');
-                if (!container) return;
-                container.style.display = visible ? '' : 'none';
+                const container = previewContainer;
+                if (container) {
+                    container.style.display = visible ? '' : 'none';
+                }
             } catch (e) { /* ignore */ }
         }
 
         // Recreate preview container DOM (force fresh shell)
         function forceRecreatePreview() {
             previewElement.innerHTML = '<div id="preview-scale"><div class="placeholder">Diagram preview will appear here</div></div>';
+        }
+
+        // Orientation API
+        function setOrientation(value) {
+            orientation = (value === 'horizontal') ? 'horizontal' : 'vertical';
+            if (previewContainer) {
+                previewContainer.classList.remove('vertical', 'horizontal');
+                previewContainer.classList.add(orientation);
+            }
+            // Ensure container is visible and rendering state is clean
+            try { setPreviewVisible(true); } catch (e) {}
+            try { resetPreviewState(); } catch (e) {}
+            // No direct sizing changes here; keep consistent sizing rules and adjust direction only
+            // If content already rendered, re-render with oriented direction for graph/flowchart
+            if (lastSource && lastSource.trim()) {
+                try {
+                    const src = applyOrientationToSource(lastSource, orientation);
+                    // Recreate DOM to avoid stale layout, then re-render debounced
+                    forceRecreatePreview();
+                    renderMermaidDebounced(src, 50);
+                } catch (e) { /* ignore */ }
+            }
+        }
+
+        // Ensure graph/flowchart respects chosen orientation by adjusting first diagram line
+        function applyOrientationToSource(source, orient) {
+            try {
+                const lines = source.split(/\r?\n/);
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    // Skip empty and comment lines
+                    if (/^\s*$/.test(line) || /^\s*%%/.test(line)) continue;
+                    const m = line.match(/^\s*(graph|flowchart)\s+(TB|TD|LR|RL|BT)?(.*)$/i);
+                    if (m) {
+                        const keyword = m[1];
+                        const rest = m[3] || '';
+                        const dir = (orient === 'horizontal') ? 'LR' : 'TD';
+                        const trimmedRest = rest.trimStart();
+                        lines[i] = trimmedRest ? `${keyword} ${dir} ${trimmedRest}` : `${keyword} ${dir}`;
+                    }
+                    break;
+                }
+                return lines.join('\n');
+            } catch (_) {
+                return source;
+            }
         }
 
         // Main render function
@@ -400,13 +452,15 @@
             
             try {
                 console.log('Rendering Mermaid diagram:', source.substring(0, 100) + '...');
+                // Apply orientation if applicable
+                const oriented = applyOrientationToSource(source, orientation);
                 
                 // Validate first to avoid Mermaid's huge error SVGs
                 try {
                     if (typeof mermaid.parse === 'function') {
-                        await mermaid.parse(source);
+                        await mermaid.parse(oriented);
                     } else if (mermaid.mermaidAPI && typeof mermaid.mermaidAPI.parse === 'function') {
-                        await mermaid.mermaidAPI.parse(source);
+                        await mermaid.mermaidAPI.parse(oriented);
                     }
                 } catch (parseErr) {
                     const message = (parseErr && (parseErr.str || parseErr.message)) || 'Invalid Mermaid syntax';
@@ -421,13 +475,13 @@
                 }
                 
                 // Generate unique ID for this render (stable by hash to avoid mermaid caching glitches)
-                const diagramId = 'diagram_' + hashString(source);
+                const diagramId = 'diagram_' + hashString(oriented);
                 lastContentHash = hashString(source);
                 
                 // Use Mermaid's render method
                 // Ensure a clean renderer
                 try { mermaid.reset(); } catch (e) { /* ignore */ }
-                const { svg, bindFunctions } = await mermaid.render(diagramId, source);
+                const { svg, bindFunctions } = await mermaid.render(diagramId, oriented);
 
                 // Build scaled wrapper and normalize SVG sizing
                 previewElement.innerHTML = '';
@@ -442,6 +496,7 @@
                 if (svgEl) {
                     svgEl.removeAttribute('width');
                     svgEl.removeAttribute('height');
+                    // Consistent sizing to avoid zero-height on container
                     svgEl.style.width = '100%';
                     svgEl.style.height = 'auto';
                     svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
@@ -591,6 +646,7 @@
         window.restoreScaleForContent = restoreScaleForContent;
         window.saveScaleForContent = saveScaleForContent;
         window.resetPreviewState = resetPreviewState;
+        window.setOrientation = setOrientation;
         
         // Notify Android that WebView is ready
         console.log('Mermaid Preview ready, notifying Android');

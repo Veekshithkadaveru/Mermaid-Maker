@@ -79,6 +79,7 @@ class MermaidPreviewState {
     private var webView: WebView? = null
     private var queuedContent: String? = null
     private val pngGenerator = WebViewPngGenerator()
+    private var currentOrientation: String = "vertical"
 
     internal fun setWebView(webView: WebView) {
         this.webView = webView
@@ -160,6 +161,15 @@ class MermaidPreviewState {
         setLastRenderedContent("")
         setError(null)
         queuedContent = null
+    }
+
+    /**
+     * Set preview orientation: "vertical" (default) or "horizontal"
+     */
+    fun setOrientation(orientation: String) {
+        val normalized = if (orientation == "horizontal") "horizontal" else "vertical"
+        currentOrientation = normalized
+        webView?.evaluateJavascript("setOrientation('$normalized');", null)
     }
 
     /**
@@ -641,6 +651,7 @@ fun MermaidPreview(
                 mainHandler.post {
                     state.setReady(true)
                     state.setTheme(theme)
+                    state.setOrientation("vertical")
                 }
             },
             onRenderSuccess = { svgLength ->

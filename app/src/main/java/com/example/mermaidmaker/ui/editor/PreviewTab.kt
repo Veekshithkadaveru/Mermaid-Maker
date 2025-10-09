@@ -44,6 +44,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.mermaidmaker.util.escapeForJs
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.SwapVert
 
 @Composable
 fun PreviewTab(
@@ -59,6 +61,10 @@ fun PreviewTab(
 ) {
     var zoomLevel by remember { mutableStateOf(100) }
     val isPreviewLoading by previewState.isLoading.collectAsState()
+    var isVertical by remember { mutableStateOf(true) }
+    val supportsFlowOrGraph = remember(content) {
+        Regex("(?m)^\\s*(graph|flowchart)\\b", RegexOption.IGNORE_CASE).containsMatchIn(content)
+    }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -126,6 +132,24 @@ fun PreviewTab(
                         }
 
                         Spacer(Modifier.width(8.dp))
+
+                        // Orientation toggle - only for flowchart/graph content
+                        if (supportsFlowOrGraph) {
+                            IconButton(onClick = {
+                                val newIsVertical = !isVertical
+                                isVertical = newIsVertical
+                                val orientation = if (newIsVertical) "vertical" else "horizontal"
+                                previewState.setOrientation(orientation)
+                            }) {
+                                val icon = if (isVertical) Icons.Filled.SwapVert else Icons.Filled.SwapHoriz
+                                val desc = if (isVertical) "Switch to horizontal" else "Switch to vertical"
+                                androidx.compose.foundation.Image(
+                                    painter = rememberVectorPainter(image = icon),
+                                    contentDescription = desc
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                        }
 
                         // PNG Share  
                         IconButton(
