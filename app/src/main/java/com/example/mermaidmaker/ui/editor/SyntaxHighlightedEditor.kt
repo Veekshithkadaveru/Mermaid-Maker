@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -55,6 +56,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
@@ -163,7 +165,6 @@ fun SyntaxHighlightedEditor(
         lintErrors = analyzeMermaidFast(textFieldValue.text)
     }
 
-    // File open/save launchers
     val context = LocalContext.current
     val openTxtLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -219,7 +220,7 @@ fun SyntaxHighlightedEditor(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // File operations group
+
                 Surface(
                     modifier = Modifier,
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -255,12 +256,11 @@ fun SyntaxHighlightedEditor(
                     }
                 }
 
-                // Middle section with status info
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Character count
+
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
                         shape = RoundedCornerShape(12.dp)
@@ -274,8 +274,7 @@ fun SyntaxHighlightedEditor(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
-                    
-                    // Error/validation status
+
                     Surface(
                         color = if (lintErrors.isNotEmpty()) 
                             MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
@@ -297,7 +296,6 @@ fun SyntaxHighlightedEditor(
                     }
                 }
 
-                // Edit operations group
                 Surface(
                     modifier = Modifier,
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -409,12 +407,25 @@ fun SyntaxHighlightedEditor(
                 )
 
                 var editorHeightPx by remember { mutableStateOf(0) }
+                var editorWidthPx by remember { mutableStateOf(0) }
                 val verticalScrollState = rememberScrollState()
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(verticalScrollState)
-                        .onSizeChanged { editorHeightPx = it.height }
+                        .drawBehind {
+                            val lineTop = selectedLineIndex * lineHeightPx
+                            val lineHeight = lineHeightPx
+                            drawRect(
+                                color = highlightColor,
+                                topLeft = Offset(0f, lineTop),
+                                size = Size(size.width, lineHeight)
+                            )
+                        }
+                        .onSizeChanged {
+                            editorHeightPx = it.height
+                            editorWidthPx = it.width
+                        }
                 ) {
 
                     Column(
@@ -442,7 +453,7 @@ fun SyntaxHighlightedEditor(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(lineHeightDp)
-                                    .background(if (index == selectedLineIndex) gutterHighlightColor else Color.Transparent)
+                                    .background(Color.Transparent)
                                     .let { base ->
                                         if (index < lines.size) base.clickable {
                                             clickedLineIndex = index
@@ -494,38 +505,21 @@ fun SyntaxHighlightedEditor(
                                 for (i in 0 until layout.lineCount) {
                                     maxRight = maxOf(maxRight, layout.getLineRight(i))
                                 }
-                                with(density) { (maxRight + 16f).toDp() }
+                                // Text width in dp plus left+right padding (16.dp) and extra trailing space (16.dp)
+                                val textWidthDp = with(density) { maxRight.toDp() }
+                                textWidthDp + 32.dp
                             } else 0.dp
                         }
                         val widthMod =
-                            if (contentWidthDp > 0.dp) Modifier.width(contentWidthDp) else Modifier.fillMaxWidth()
+                            Modifier
+                                .fillMaxWidth()
+                                .then(Modifier.widthIn(min = contentWidthDp))
 
                         val contentHeightDp = lineHeightDp * lines.size
 
                         Box(modifier = widthMod.height(contentHeightDp)) {
 
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .drawBehind {
-                                        val layout = textLayout
-                                        if (layout != null) {
-                                            val lineIndex = selectedLineIndex.coerceIn(
-                                                0,
-                                                (layout.lineCount - 1).coerceAtLeast(0)
-                                            )
-                                            if (layout.lineCount > 0) {
-                                                val top = layout.getLineTop(lineIndex)
-                                                val bottom = layout.getLineBottom(lineIndex)
-                                                drawRect(
-                                                    color = highlightColor,
-                                                    topLeft = Offset(0f, top),
-                                                    size = Size(size.width, bottom - top)
-                                                )
-                                            }
-                                        }
-                                    }
-                            )
+                            
                             // Syntax highlighted overlay
                             if (textFieldValue.text.isNotEmpty()) {
                                 Text(
@@ -537,13 +531,12 @@ fun SyntaxHighlightedEditor(
                                     ),
                                     modifier = Modifier
                                         .matchParentSize()
-                                        .padding(start = 8.dp),
+                                        .padding(horizontal = 8.dp),
                                     softWrap = false,
                                     onTextLayout = { result -> textLayout = result }
                                 )
                             }
 
-                            // Actual input field (transparent)
                             BasicTextField(
                                 value = textFieldValue,
                                 onValueChange = { newValue ->
@@ -557,9 +550,10 @@ fun SyntaxHighlightedEditor(
                                     lineHeight = lineHeightSp,
                                     color = Color.Transparent
                                 ),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                                 modifier = Modifier
                                     .matchParentSize()
-                                    .padding(start = 8.dp),
+                                    .padding(horizontal = 8.dp),
                                 decorationBox = { innerTextField ->
                                     Box(modifier = Modifier.matchParentSize()) {
                                         if (textFieldValue.text.isEmpty()) {
@@ -582,12 +576,39 @@ sequenceDiagram
                                                         alpha = 0.6f
                                                     )
                                                 )
+                                                ,
+                                                modifier = Modifier.padding(horizontal = 8.dp)
                                             )
                                         }
                                         innerTextField()
                                     }
                                 }
                             )
+
+                            LaunchedEffect(textLayout, textFieldValue.selection, editorWidthPx) {
+                                val layout = textLayout ?: return@LaunchedEffect
+                                if (editorWidthPx <= 0) return@LaunchedEffect
+                                val caretOffset = textFieldValue.selection.start.coerceIn(0, textFieldValue.text.length)
+                                val caretX = layout.getCursorRect(caretOffset).left
+                                val leftPad = with(density) { 8.dp.toPx() }
+                                val rightPad = with(density) { 8.dp.toPx() }
+                                val caretWithPadding = caretX + leftPad
+                                val viewportStart = horizontalScrollState.value.toFloat()
+                                val gutterPx = with(density) { 48.dp.toPx() }
+                                val viewportEnd = viewportStart + (editorWidthPx - gutterPx)
+                                val desiredRight = viewportEnd - rightPad - 8f
+                                val desiredLeft = viewportStart + leftPad + 8f
+                                when {
+                                    caretWithPadding > desiredRight -> {
+                                        val target = (caretWithPadding - editorWidthPx + rightPad + 16f).roundToInt()
+                                        horizontalScrollState.scrollTo(target.coerceIn(0, horizontalScrollState.maxValue))
+                                    }
+                                    caretWithPadding < desiredLeft -> {
+                                        val target = (caretWithPadding - leftPad - 16f).roundToInt().coerceAtLeast(0)
+                                        horizontalScrollState.scrollTo(target)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -637,7 +658,6 @@ private fun applySyntaxHighlighting(text: String): AnnotatedString {
                 "gitgraph", "TD", "TB", "BT", "RL", "LR"
             )
 
-            // Check for keywords at the beginning of lines
             keywords.forEach { keyword ->
                 if (trimmedLine.startsWith(keyword)) {
                     val leadingSpaces = line.indexOf(keyword)
