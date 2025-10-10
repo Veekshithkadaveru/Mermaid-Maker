@@ -11,37 +11,25 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.automirrored.filled.Redo
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -63,24 +51,17 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import android.view.KeyEvent as AndroidKeyEvent
-
-
-private data class EditorLintError(val line: Int, val message: String)
 
 /**
  * Enhanced native editor with basic syntax highlighting
@@ -213,129 +194,19 @@ fun SyntaxHighlightedEditor(
             shadowElevation = 1.dp,
             tonalElevation = 2.dp
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-
-                Surface(
-                    modifier = Modifier,
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        IconButton(
-                            onClick = { openTxtLauncher.launch(arrayOf("text/plain")) },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.FolderOpen, 
-                                contentDescription = "Open file",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                val suggested = generateAutoFilename()
-                                saveTxtLauncher.launch(suggested)
-                            },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Save, 
-                                contentDescription = "Save file",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "${textFieldValue.text.length} chars",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Medium
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    Surface(
-                        color = if (lintErrors.isNotEmpty()) 
-                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                        else 
-                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = if (lintErrors.isNotEmpty()) "${lintErrors.size} errors" else "No errors",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Medium
-                            ),
-                            color = if (lintErrors.isNotEmpty()) 
-                                MaterialTheme.colorScheme.error 
-                            else 
-                                MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier,
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        IconButton(
-                            onClick = { undo() }, 
-                            enabled = canUndo(),
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Undo, 
-                                contentDescription = "Undo",
-                                tint = if (canUndo()) 
-                                    MaterialTheme.colorScheme.primary 
-                                else 
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            )
-                        }
-                        IconButton(
-                            onClick = { redo() }, 
-                            enabled = canRedo(),
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Redo, 
-                                contentDescription = "Redo",
-                                tint = if (canRedo()) 
-                                    MaterialTheme.colorScheme.primary 
-                                else 
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            )
-                        }
-                    }
-                }
-            }
+            EditorTopBar(
+                textLength = textFieldValue.text.length,
+                errorCount = lintErrors.size,
+                canUndo = canUndo(),
+                canRedo = canRedo(),
+                onOpen = { openTxtLauncher.launch(arrayOf("text/plain")) },
+                onSave = {
+                    val suggested = generateAutoFilename()
+                    saveTxtLauncher.launch(suggested)
+                },
+                onUndo = { undo() },
+                onRedo = { redo() }
+            )
         }
 
         val customTextSelectionColors = TextSelectionColors(
@@ -393,8 +264,7 @@ fun SyntaxHighlightedEditor(
                 val selectedLineIndex = clickedLineIndex ?: cursorLineIndex
                 val highlightColor =
                     MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
-                val gutterHighlightColor =
-                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+
                 val lineHeightSp = (fontSize + 6).sp
                 val lineHeightDp = with(density) { lineHeightSp.toDp() }
                 val lineHeightPx = with(density) { lineHeightSp.toPx() }
@@ -616,185 +486,3 @@ sequenceDiagram
         }
     }
 }
-private fun generateAutoFilename(): String {
-    val formatter = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
-    val timestamp = formatter.format(java.util.Date())
-    return "mermaid_$timestamp.txt"
-}
-
-
-/**
- * Apply basic syntax highlighting to Mermaid code
- */
-@Composable
-private fun applySyntaxHighlighting(text: String): AnnotatedString {
-    val keywordColor = Color(0xFF9C27B0) // Purple
-    val nodeColor = Color(0xFF2196F3) // Blue
-    val arrowColor = Color(0xFF00BCD4) // Cyan
-    val stringColor = Color(0xFF4CAF50) // Green
-    val commentColor = Color(0xFF757575) // Gray
-
-    return buildAnnotatedString {
-        val lines = text.split('\n')
-
-        lines.forEachIndexed { lineIndex, line ->
-            if (lineIndex > 0) append('\n')
-
-
-            if (line.trim().startsWith("%%")) {
-                withStyle(SpanStyle(color = commentColor)) {
-                    append(line)
-                }
-                return@forEachIndexed
-            }
-
-            var currentIndex = 0
-            val trimmedLine = line.trim()
-
-            // Keywords
-            val keywords = listOf(
-                "graph", "flowchart", "sequenceDiagram", "classDiagram",
-                "stateDiagram", "erDiagram", "journey", "gantt", "pie",
-                "gitgraph", "TD", "TB", "BT", "RL", "LR"
-            )
-
-            keywords.forEach { keyword ->
-                if (trimmedLine.startsWith(keyword)) {
-                    val leadingSpaces = line.indexOf(keyword)
-                    append(line.substring(0, leadingSpaces))
-                    withStyle(SpanStyle(color = keywordColor)) {
-                        append(keyword)
-                    }
-                    currentIndex = leadingSpaces + keyword.length
-                }
-            }
-
-            if (currentIndex == 0) {
-
-                var i = 0
-                while (i < line.length) {
-                    when {
-
-                        line.substring(i).startsWith("-->") -> {
-                            withStyle(SpanStyle(color = arrowColor)) {
-                                append("-->")
-                            }
-                            i += 3
-                        }
-
-                        line.substring(i).startsWith("->") -> {
-                            withStyle(SpanStyle(color = arrowColor)) {
-                                append("->")
-                            }
-                            i += 2
-                        }
-
-                        line.substring(i).startsWith("->>") -> {
-                            withStyle(SpanStyle(color = arrowColor)) {
-                                append("->>")
-                            }
-                            i += 3
-                        }
-
-                        line.substring(i).startsWith("-->>") -> {
-                            withStyle(SpanStyle(color = arrowColor)) {
-                                append("-->>")
-                            }
-                            i += 4
-                        }
-
-                        line[i] in listOf('[', ']', '(', ')', '{', '}', '<', '>') -> {
-                            withStyle(SpanStyle(color = arrowColor)) {
-                                append(line[i])
-                            }
-                            i++
-                        }
-
-                        line[i] == '"' -> {
-                            val endQuote = line.indexOf('"', i + 1)
-                            if (endQuote != -1) {
-                                withStyle(SpanStyle(color = stringColor)) {
-                                    append(line.substring(i, endQuote + 1))
-                                }
-                                i = endQuote + 1
-                            } else {
-                                append(line[i])
-                                i++
-                            }
-                        }
-
-                        line[i].isLetter() -> {
-                            val nodeStart = i
-                            while (i < line.length && (line[i].isLetterOrDigit() || line[i] == '_')) {
-                                i++
-                            }
-
-                            if (i < line.length && line[i] in listOf('[', '(', '{', '-', ' ')) {
-                                withStyle(SpanStyle(color = nodeColor)) {
-                                    append(line.substring(nodeStart, i))
-                                }
-                            } else {
-                                append(line.substring(nodeStart, i))
-                            }
-                        }
-
-                        else -> {
-                            append(line[i])
-                            i++
-                        }
-                    }
-                }
-            } else {
-
-                append(line.substring(currentIndex))
-            }
-        }
-    }
-}
-
-/**
- * Very fast Mermaid lint: mode keyword presence and basic bracket balance per line
- */
-private fun analyzeMermaidFast(text: String): List<EditorLintError> {
-    val errors = mutableListOf<EditorLintError>()
-    if (text.isBlank()) return emptyList()
-
-    val lines = text.split('\n')
-
-    val keywords = setOf(
-        "graph", "flowchart", "sequenceDiagram", "classDiagram",
-        "stateDiagram", "stateDiagram-v2", "erDiagram", "journey", "gantt", "pie", "gitgraph"
-    )
-    val firstNonEmptyIndex = lines.indexOfFirst { it.isNotBlank() }
-    if (firstNonEmptyIndex >= 0) {
-        val first = lines[firstNonEmptyIndex].trimStart()
-        if (keywords.none { first.startsWith(it) }) {
-            errors.add(
-                EditorLintError(
-                    firstNonEmptyIndex,
-                    "Missing diagram type (e.g., graph TD, sequenceDiagram)"
-                )
-            )
-        }
-    }
-
-    val pairs = mapOf('(' to ')', '[' to ']', '{' to '}')
-    lines.forEachIndexed { idx, line ->
-        val stack = ArrayDeque<Char>()
-        line.forEach { ch ->
-            if (ch in pairs.keys) stack.addLast(ch)
-            else if (ch in pairs.values) {
-                if (stack.isEmpty() || pairs[stack.removeLast()] != ch) {
-                    errors.add(EditorLintError(idx, "Unbalanced brackets"))
-                    return@forEachIndexed
-                }
-            }
-        }
-        if (stack.isNotEmpty()) {
-            errors.add(EditorLintError(idx, "Unclosed bracket"))
-        }
-    }
-
-    return errors
-}
-
