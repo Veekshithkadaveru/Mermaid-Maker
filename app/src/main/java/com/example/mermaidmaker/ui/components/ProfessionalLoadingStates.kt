@@ -45,8 +45,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
-// Import CardVariant enum from ProfessionalCard.kt
-import com.example.mermaidmaker.ui.components.CardVariant
+// Import CardVariant enum from common package
+import com.example.mermaidmaker.ui.common.CardVariant
 
 @Composable
 fun ProfessionalLoadingOverlay(

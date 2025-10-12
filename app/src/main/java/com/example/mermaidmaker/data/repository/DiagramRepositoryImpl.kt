@@ -1,33 +1,31 @@
 package com.example.mermaidmaker.data.repository
 
 import com.example.mermaidmaker.data.local.dao.DiagramDao
-import com.example.mermaidmaker.data.mapper.toDomain
-import com.example.mermaidmaker.data.mapper.toEntity
+import com.example.mermaidmaker.data.local.entity.DiagramEntity
+import com.example.mermaidmaker.data.mapper.DiagramEntityDomainMapper
 import com.example.mermaidmaker.domain.model.MermaidDiagram
 import com.example.mermaidmaker.domain.repository.DiagramRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 
 class DiagramRepositoryImpl(
-    private val diagramDao: DiagramDao
-) : DiagramRepository {
+    private val diagramDao: DiagramDao,
+    mapper: DiagramEntityDomainMapper = DiagramEntityDomainMapper()
+) : BaseRepositoryImpl<DiagramEntity, MermaidDiagram>(mapper), DiagramRepository {
 
     override suspend fun getAllDiagrams(): Flow<List<MermaidDiagram>> {
-        return diagramDao.getAllDiagrams().map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return mapEntitiesToDomains(diagramDao.getAllDiagrams())
     }
 
     override suspend fun getDiagramById(id: String): MermaidDiagram? {
-        return diagramDao.getDiagramById(id)?.toDomain()
+        return mapEntityToDomain(diagramDao.getDiagramById(id))
     }
 
     override suspend fun insertDiagram(diagram: MermaidDiagram) {
-        diagramDao.insertDiagram(diagram.toEntity())
+        diagramDao.insertDiagram(mapDomainToEntity(diagram))
     }
 
     override suspend fun updateDiagram(diagram: MermaidDiagram) {
-        diagramDao.updateDiagram(diagram.toEntity())
+        diagramDao.updateDiagram(mapDomainToEntity(diagram))
     }
 
     override suspend fun deleteDiagram(id: String) {
@@ -35,9 +33,7 @@ class DiagramRepositoryImpl(
     }
 
     override suspend fun getFavoriteDiagrams(): Flow<List<MermaidDiagram>> {
-        return diagramDao.getFavoriteDiagrams().map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return mapEntitiesToDomains(diagramDao.getFavoriteDiagrams())
     }
 
     override suspend fun toggleFavorite(id: String) {
@@ -45,6 +41,6 @@ class DiagramRepositoryImpl(
     }
 
     override suspend fun getMostRecentDiagram(): MermaidDiagram? {
-        return diagramDao.getMostRecentDiagram()?.toDomain()
+        return mapEntityToDomain(diagramDao.getMostRecentDiagram())
     }
 }

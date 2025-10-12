@@ -1,7 +1,5 @@
 package com.example.mermaidmaker.domain.usecase
 
-import android.net.Uri
-
 /**
  * Use case for exporting diagram content in various formats
  */
@@ -9,16 +7,16 @@ interface ExportDiagramUseCase {
     /**
      * Export diagram as SVG
      * @param diagramId The ID of the diagram to export
-     * @param onResult Callback with result (Uri on success, null on failure)
+     * @param onResult Callback with result (URI string on success, null on failure)
      */
-    suspend fun exportAsSvg(diagramId: String, onResult: (Uri?) -> Unit)
+    suspend fun exportAsSvg(diagramId: String, onResult: (String?) -> Unit)
 
     /**
      * Export diagram source content
      * @param diagramId The ID of the diagram to export
-     * @param onResult Callback with result (Uri on success, null on failure)
+     * @param onResult Callback with result (URI string on success, null on failure)
      */
-    suspend fun exportAsSource(diagramId: String, onResult: (Uri?) -> Unit)
+    suspend fun exportAsSource(diagramId: String, onResult: (String?) -> Unit)
 
     /**
      * Share diagram as SVG
@@ -30,12 +28,12 @@ interface ExportDiagramUseCase {
      * Export SVG content directly (for preview use)
      * @param svgContent The SVG content to export
      * @param fileName Suggested filename
-     * @param onResult Callback with result (Uri on success, null on failure)
+     * @param onResult Callback with result (URI string on success, null on failure)
      */
     suspend fun exportSvgContent(
         svgContent: String,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     )
 
     /**

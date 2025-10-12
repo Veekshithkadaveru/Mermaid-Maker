@@ -1,6 +1,4 @@
 package com.example.mermaidmaker.domain.usecase
-
-import android.net.Uri
 import android.util.Log
 import com.example.mermaidmaker.domain.repository.DiagramRepository
 import com.example.mermaidmaker.domain.service.FileExportService
@@ -17,7 +15,7 @@ class ExportDiagramUseCaseImpl(
         private const val TAG = "ExportDiagramUseCase"
     }
 
-    override suspend fun exportAsSvg(diagramId: String, onResult: (Uri?) -> Unit) {
+    override suspend fun exportAsSvg(diagramId: String, onResult: (String?) -> Unit) {
         try {
             val diagram = diagramRepository.getDiagramById(diagramId)
             if (diagram != null) {
@@ -41,7 +39,7 @@ class ExportDiagramUseCaseImpl(
         }
     }
 
-    override suspend fun exportAsSource(diagramId: String, onResult: (Uri?) -> Unit) {
+    override suspend fun exportAsSource(diagramId: String, onResult: (String?) -> Unit) {
         try {
             val diagram = diagramRepository.getDiagramById(diagramId)
             if (diagram != null) {
@@ -88,7 +86,7 @@ class ExportDiagramUseCaseImpl(
     override suspend fun exportSvgContent(
         svgContent: String,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     ) {
         try {
             fileExportService.exportSvg(svgContent, fileName, onResult)

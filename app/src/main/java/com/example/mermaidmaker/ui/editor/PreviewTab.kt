@@ -43,7 +43,9 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.mermaidmaker.util.escapeForJs
+import com.example.mermaidmaker.ui.common.WebViewUtils
+import com.example.mermaidmaker.data.processing.*
+import com.example.mermaidmaker.ui.components.ProfessionalLoadingOverlay
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
 
@@ -214,36 +216,11 @@ fun PreviewTab(
                         onFixWithAi = onFixWithAi
                     )
 
-                    // Loading overlay for preview
                     if (isPreviewLoading) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-                                ),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                            ) {
-                                androidx.compose.foundation.layout.Row(
-                                    modifier = Modifier.padding(24.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 3.dp
-                                    )
-                                    Text(
-                                        text = "Rendering diagram...",
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                }
-                            }
-                        }
+                        ProfessionalLoadingOverlay(
+                            title = "Rendering diagram...",
+                            isVisible = true
+                        )
                     }
                 }
             }
@@ -316,23 +293,7 @@ fun setupFullScreenWebView(
     onFixWithAi: (String) -> Unit = {}
 ) {
     webView.apply {
-        setBackgroundColor(android.graphics.Color.TRANSPARENT)
-        settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            allowFileAccess = true
-            allowContentAccess = true
-            setSupportZoom(true)
-            builtInZoomControls = false
-            displayZoomControls = false
-            loadWithOverviewMode = true
-            useWideViewPort = true
-            safeBrowsingEnabled = true
-            textZoom = 100
-            minimumFontSize = 12
-            cacheMode = WebSettings.LOAD_NO_CACHE
-        }
-
+        WebViewUtils.applyCommonPreviewSettings(this)
         // JavaScript interface - compatible with MermaidPreview
         val jsInterface = object {
             @android.webkit.JavascriptInterface
@@ -362,44 +323,8 @@ fun setupFullScreenWebView(
         }
 
         addJavascriptInterface(jsInterface, "Android")
-
-        webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(
-                view: WebView?,
-                request: WebResourceRequest?
-            ): Boolean {
-                val url = request?.url?.toString() ?: return false
-                return !url.startsWith("file:///android_asset/")
-            }
-
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                // WebView ready callback will be called from JavaScript
-            }
-
-            @Deprecated("Deprecated in API level 24")
-            override fun onReceivedError(
-                view: WebView?,
-                errorCode: Int,
-                description: String?,
-                failingUrl: String?
-            ) {
-                super.onReceivedError(view, errorCode, description, failingUrl)
-                Log.e("FullScreenMermaidPreview", "WebView error: $errorCode - $description")
-            }
-        }
-
-        webChromeClient = object : WebChromeClient() {
-            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
-                Log.d(
-                    "FullScreenMermaidPreview",
-                    "Console: ${consoleMessage.message()} at ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}"
-                )
-                return true
-            }
-        }
-
-        // Use the same HTML as regular preview for consistent functionality
+        webViewClient = WebViewUtils.createAssetsOnlyClient(tag = "FullScreenMermaidPreview")
+        webChromeClient = WebViewUtils.createConsoleLoggingChromeClient(tag = "FullScreenMermaidPreview")
         loadUrl("file:///android_asset/mermaid_preview.html")
     }
 }

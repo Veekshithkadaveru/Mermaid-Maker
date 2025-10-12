@@ -294,29 +294,23 @@ class MermaidEditorViewModel(
      * Copy content to clipboard
      */
     fun copyToClipboard(context: Context) {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("Mermaid Diagram", _editorContent.value)
-        clipboard.setPrimaryClip(clip)
+        com.example.mermaidmaker.ui.common.ClipboardUtils.copyText(
+            context = context,
+            label = "Mermaid Diagram",
+            text = _editorContent.value
+        )
     }
 
     /**
      * Paste content from clipboard
      */
     fun pasteFromClipboard(context: Context): String {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = clipboard.primaryClip
-        if (clip != null && clip.itemCount > 0) {
-            val item = clip.getItemAt(0)
-            val pastedText = item.coerceToText(context)?.toString() ?: ""
-            if (pastedText.isNotBlank()) {
-                val current = _editorContent.value
-                val newContent = if (current.isBlank()) pastedText else current + "\n" + pastedText
-                _editorContent.value = newContent
-                return newContent
-            } else {
-                _errorMessage.value = "Clipboard is empty or not text"
-                return _editorContent.value
-            }
+        val pastedText = com.example.mermaidmaker.ui.common.ClipboardUtils.pasteText(context) ?: ""
+        if (pastedText.isNotBlank()) {
+            val current = _editorContent.value
+            val newContent = if (current.isBlank()) pastedText else current + "\n" + pastedText
+            _editorContent.value = newContent
+            return newContent
         } else {
             _errorMessage.value = "Nothing to paste"
             return _editorContent.value
