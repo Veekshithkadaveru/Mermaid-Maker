@@ -14,7 +14,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.mermaidmaker.util.escapeForJs
+import com.example.mermaidmaker.ui.common.WebViewUtils
+import com.example.mermaidmaker.data.processing.*
 
 /**
  * A Compose wrapper for the Mermaid syntax editor using WebView and CodeMirror
@@ -75,32 +76,12 @@ fun MermaidEditor(
 @SuppressLint("SetJavaScriptEnabled")
 private fun setupWebView(webView: WebView, javascriptInterface: MermaidEditorJavaScriptInterface) {
     webView.apply {
-        settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            allowFileAccess = true
-            allowContentAccess = true
-            setSupportZoom(false)
-            builtInZoomControls = false
-            displayZoomControls = false
-            // Enable Safe Browsing (API 26+)
-            safeBrowsingEnabled = true
-        }
-
+        WebViewUtils.applyCommonEditorSettings(this)
         addJavascriptInterface(javascriptInterface, "Android")
-
-        webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                // Only allow loading from app assets
-                return url?.startsWith("file:///android_asset/")?.not() ?: false
-            }
-
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                javascriptInterface.onWebViewReady()
-            }
-        }
-
+        webViewClient = WebViewUtils.createAssetsOnlyClient(
+            tag = "MermaidEditor",
+            onPageFinished = { _ -> javascriptInterface.onWebViewReady() }
+        )
         loadUrl("file:///android_asset/mermaid_editor.html")
     }
 }
@@ -202,15 +183,7 @@ object MermaidEditorUtils {
  * String escaping moved to util.StringJsEscaping
  */
 
-private fun String.unescapeFromJs(): String {
-    return this
-        .replace("\\n", "\n")
-        .replace("\\r", "\r")
-        .replace("\\t", "\t")
-        .replace("\\`", "`")
-        .replace("\\$", "$")
-        .replace("\\\\", "\\")
-}
+// moved to util.StringJsEscaping
 
 /**
  * Composable for a simple read-only Mermaid editor

@@ -31,7 +31,7 @@ class FileExportServiceImpl(
     override suspend fun exportSvg(
         svgContent: String,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     ) {
         // Validate inputs
         if (svgContent.isBlank()) {
@@ -70,7 +70,7 @@ class FileExportServiceImpl(
     override suspend fun exportSource(
         sourceContent: String,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     ) {
         if (sourceContent.isBlank()) {
             Log.e(TAG, "Empty source content")
@@ -158,7 +158,7 @@ class FileExportServiceImpl(
     override suspend fun exportPng(
         pngData: ByteArray,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     ) {
         if (pngData.isEmpty()) {
             Log.e(TAG, "Empty PNG data")
@@ -253,7 +253,7 @@ class FileExportServiceImpl(
         mimeType: String,
         relativePath: String,
         targetUri: Uri,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     ) {
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
@@ -270,7 +270,7 @@ class FileExportServiceImpl(
             }
             
             Log.d(TAG, "File exported successfully using MediaStore: $uri (type: $mimeType)")
-            onResult(uri)
+            onResult(uri?.toString())
         } else {
             Log.e(TAG, "Failed to create MediaStore entry for $mimeType")
             onResult(null)
@@ -301,7 +301,7 @@ class FileExportServiceImpl(
     private suspend fun exportSvgLegacy(
         svgContent: String,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     ) {
         exportToLegacyStorage(
             data = svgContent.toByteArray(),
@@ -315,7 +315,7 @@ class FileExportServiceImpl(
     private suspend fun exportSourceLegacy(
         sourceContent: String,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     ) {
         exportToLegacyStorage(
             data = sourceContent.toByteArray(),
@@ -329,7 +329,7 @@ class FileExportServiceImpl(
     private suspend fun exportPngLegacy(
         pngData: ByteArray,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     ) {
         val picturesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES)
         val mermaidDir = File(picturesDir, "MermaidMaker")
@@ -352,7 +352,7 @@ class FileExportServiceImpl(
         data: ByteArray,
         fileName: String,
         directory: File,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     ) {
         try {
             val file = File(directory, fileName)
@@ -365,7 +365,7 @@ class FileExportServiceImpl(
             )
             
             Log.d(TAG, "File exported successfully (legacy): $uri")
-            onResult(uri)
+            onResult(uri?.toString())
             
         } catch (e: Exception) {
             Log.e(TAG, "Legacy export failed", e)

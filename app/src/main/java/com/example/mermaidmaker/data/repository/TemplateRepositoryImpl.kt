@@ -1,39 +1,36 @@
 package com.example.mermaidmaker.data.repository
 
 import com.example.mermaidmaker.data.local.dao.TemplateDao
-import com.example.mermaidmaker.data.mapper.toDomain
-import com.example.mermaidmaker.data.mapper.toEntity
+import com.example.mermaidmaker.data.local.entity.TemplateEntity
+import com.example.mermaidmaker.data.mapper.TemplateEntityDomainMapper
 import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.domain.model.Template
 import com.example.mermaidmaker.domain.repository.TemplateRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+
 class TemplateRepositoryImpl(
-    private val templateDao: TemplateDao
-) : TemplateRepository {
+    private val templateDao: TemplateDao,
+    mapper: TemplateEntityDomainMapper = TemplateEntityDomainMapper()
+) : BaseRepositoryImpl<TemplateEntity, Template>(mapper), TemplateRepository {
 
     override suspend fun getAllTemplates(): Flow<List<Template>> {
-        return templateDao.getAllTemplates().map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return mapEntitiesToDomains(templateDao.getAllTemplates())
     }
 
     override suspend fun getTemplatesByType(type: DiagramType): Flow<List<Template>> {
-        return templateDao.getTemplatesByType(type.name).map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return mapEntitiesToDomains(templateDao.getTemplatesByType(type.name))
     }
 
     override suspend fun getTemplateById(id: String): Template? {
-        return templateDao.getTemplateById(id)?.toDomain()
+        return mapEntityToDomain(templateDao.getTemplateById(id))
     }
 
     override suspend fun insertTemplate(template: Template) {
-        templateDao.insertTemplate(template.toEntity())
+        templateDao.insertTemplate(mapDomainToEntity(template))
     }
 
     override suspend fun updateTemplate(template: Template) {
-        templateDao.updateTemplate(template.toEntity())
+        templateDao.updateTemplate(mapDomainToEntity(template))
     }
 
     override suspend fun deleteTemplate(id: String) {

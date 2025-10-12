@@ -36,10 +36,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.mermaidmaker.ui.ai.AiGenerationTab
 import com.example.mermaidmaker.ui.components.ProfessionalSnackbarHost
+import com.example.mermaidmaker.ui.components.ProfessionalLoadingOverlay
 import com.example.mermaidmaker.ui.preview.rememberMermaidPreviewState
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import kotlinx.coroutines.launch
+import com.example.mermaidmaker.ui.common.showMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,10 +109,7 @@ fun MainEditorScreen(
     // Show error messages as snackbars
     LaunchedEffect(errorMessage) {
         errorMessage?.let { error ->
-            snackbarHostState.showSnackbar(
-                message = error,
-                actionLabel = "Dismiss"
-            )
+            snackbarHostState.showMessage(message = error, actionLabel = "Dismiss")
             // Clear the error after showing
             viewModel.clearError()
         }
@@ -152,9 +151,7 @@ fun MainEditorScreen(
     LaunchedEffect(pngExportResult) {
         pngExportResult?.let { success ->
             val message = if (success) "PNG exported successfully" else "Failed to export PNG"
-            snackbarScope.launch {
-                snackbarHostState.showSnackbar(message)
-            }
+            snackbarScope.launch { snackbarHostState.showMessage(message) }
             viewModel.clearPngExportResult()
         }
     }
@@ -259,9 +256,7 @@ fun MainEditorScreen(
                             editorState.setContent(content)
                         },
                         onShowSnackbar = { message ->
-                            snackbarScope.launch {
-                                snackbarHostState.showSnackbar(message)
-                            }
+            snackbarScope.launch { snackbarHostState.showMessage(message) }
                         }
                     )
 
@@ -346,35 +341,11 @@ fun MainEditorScreen(
             )
         }
 
-        // Loading overlay
         if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Text(
-                            text = "Loading diagram...",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
+            ProfessionalLoadingOverlay(
+                title = "Loading diagram...",
+                isVisible = true
+            )
         }
 
         // Full-screen AI generation overlay
@@ -391,9 +362,7 @@ fun MainEditorScreen(
     // Show Fix with AI error messages
     LaunchedEffect(aiFixErrorMessage) {
         aiFixErrorMessage?.let { msg ->
-            snackbarScope.launch {
-                snackbarHostState.showSnackbar(message = msg)
-            }
+            snackbarScope.launch { snackbarHostState.showMessage(message = msg) }
         }
     }
 

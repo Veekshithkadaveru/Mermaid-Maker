@@ -1,7 +1,5 @@
 package com.example.mermaidmaker.domain.service
 
-import android.net.Uri
-
 /**
  * Service for exporting files using Storage Access Framework
  */
@@ -10,24 +8,24 @@ interface FileExportService {
      * Export SVG content to a file using Storage Access Framework
      * @param svgContent The SVG content to export
      * @param fileName The suggested filename
-     * @param onResult Callback with result (Uri on success, null on failure)
+     * @param onResult Callback with result (URI string on success, null on failure)
      */
     suspend fun exportSvg(
         svgContent: String,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     )
 
     /**
      * Export diagram source content to a file
      * @param sourceContent The diagram source content
      * @param fileName The suggested filename
-     * @param onResult Callback with result (Uri on success, null on failure)
+     * @param onResult Callback with result (URI string on success, null on failure)
      */
     suspend fun exportSource(
         sourceContent: String,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     )
 
     /**
@@ -45,12 +43,12 @@ interface FileExportService {
      * Export PNG content to a file using Storage Access Framework
      * @param pngData The PNG data bytes to export
      * @param fileName The suggested filename
-     * @param onResult Callback with result (Uri on success, null on failure)
+     * @param onResult Callback with result (URI string on success, null on failure)
      */
     suspend fun exportPng(
         pngData: ByteArray,
         fileName: String,
-        onResult: (Uri?) -> Unit
+        onResult: (String?) -> Unit
     )
 
     /**

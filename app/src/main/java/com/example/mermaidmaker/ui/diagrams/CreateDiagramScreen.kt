@@ -54,6 +54,7 @@ import com.example.mermaidmaker.ui.components.ProfessionalTopBar
 import com.example.mermaidmaker.ui.theme.Spacing
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+import com.example.mermaidmaker.ui.common.showMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -257,18 +258,18 @@ fun CreateDiagramScreen(
                             onSaved = { savedDiagram ->
                                 // Show success message
                                 scope.launch {
-                                    snackbarHostState.showSnackbar(
+                                    snackbarHostState.showMessage(
                                         message = "Diagram '${savedDiagram.title}' created successfully!",
                                         actionLabel = "View"
                                     )
-                                    kotlinx.coroutines.delay(1000) // Brief delay to show message
+                                    kotlinx.coroutines.delay(1000)
                                     navController.popBackStack()
                                 }
                             },
                             onError = { error ->
                                 // Show error snackbar
                                 scope.launch {
-                                    snackbarHostState.showSnackbar(
+                                    snackbarHostState.showMessage(
                                         message = "Failed to create diagram: ${error.message}",
                                         actionLabel = "Dismiss"
                                     )
