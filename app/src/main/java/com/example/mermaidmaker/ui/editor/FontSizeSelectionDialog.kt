@@ -1,25 +1,24 @@
 package com.example.mermaidmaker.ui.editor
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,8 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.mermaidmaker.ui.common.rememberOrientationAwareMaxHeight
 import com.example.mermaidmaker.ui.common.rememberCappedDialogWidth
+import com.example.mermaidmaker.ui.common.rememberOrientationAwareMaxHeight
 import com.example.mermaidmaker.ui.common.rememberOrientationAwarePadding
 
 @Composable
@@ -61,7 +60,7 @@ fun FontSizeSelectionDialog(
                 verticalPortrait = 8.dp,
                 verticalLandscape = 8.dp
             )
-            androidx.compose.foundation.layout.Column(
+            Column(
                 modifier = Modifier.padding(contentPadding)
             ) {
                 Row(
@@ -79,31 +78,39 @@ fun FontSizeSelectionDialog(
                         onClick = onDismiss,
                         modifier = Modifier.size(16.dp)
                     ) {
-                        Text(
-                            "×",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
+
+                HorizontalDivider()
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Font size options
                 val fontSizes = listOf(12, 14, 16, 18, 21, 24, 27, 30, 36)
-
                 val maxListHeight = rememberOrientationAwareMaxHeight()
 
                 LazyColumn(
-                    modifier = Modifier.heightIn(max = maxListHeight),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.heightIn(max = maxListHeight)
                 ) {
                     items(fontSizes) { fontSize ->
-                        FontSizeOption(
-                            fontSize = fontSize,
-                            isSelected = fontSize == currentFontSize,
-                            onClick = { onFontSizeSelected(fontSize) }
+                        ListItem(
+                            headlineContent = { Text("$fontSize px") },
+                            leadingContent = {
+                                RadioButton(
+                                    selected = fontSize == currentFontSize,
+                                    onClick = {
+                                        onFontSizeSelected(fontSize)
+                                        onDismiss()
+                                    }
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         )
+                        HorizontalDivider()
                     }
                 }
             }
@@ -111,57 +118,3 @@ fun FontSizeSelectionDialog(
     }
 }
 
-@Composable
-fun FontSizeOption(
-    fontSize: Int,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
-        onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
-        ),
-        border = if (isSelected) {
-            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-        } else {
-            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-        }
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            RadioButton(
-                selected = isSelected,
-                onClick = onClick,
-                modifier = Modifier.size(20.dp),
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary,
-                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Text(
-                text = "font size $fontSize",
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                }
-            )
-        }
-    }
-}
