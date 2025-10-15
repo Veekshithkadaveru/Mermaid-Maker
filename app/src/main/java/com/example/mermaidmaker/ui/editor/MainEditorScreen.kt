@@ -51,7 +51,6 @@ fun MainEditorScreen(
 ) {
     val fileExportService: com.example.mermaidmaker.domain.service.FileExportService = koinInject()
     var selectedTabIndex by remember { mutableStateOf(1) } // Start with "Code" tab
-    var showExampleDialog by remember { mutableStateOf(false) }
     var showFontSizeDialog by remember { mutableStateOf(false) }
     val editorContent by viewModel.editorContent.collectAsState()
     val selectedDiagramType by viewModel.selectedDiagramType.collectAsState()
@@ -79,26 +78,22 @@ fun MainEditorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
 
-    val tabs = listOf("Text", "Code", "Examples", "Preview")
+    val tabs = listOf("Text", "Code", "Preview")
 
-    // Initialize with existing diagram if provided; otherwise, rely on ViewModel's recent load
     LaunchedEffect(diagramId) {
         if (diagramId != null) {
             viewModel.loadDiagram(diagramId)
         } else if (editorContent.isBlank()) {
-            // If nothing loaded yet, ask ViewModel to load most recent diagram
-            viewModel.loadMostRecent()
+           viewModel.loadMostRecent()
         }
     }
 
-    // Update editor state when content changes from ViewModel
     LaunchedEffect(editorContent) {
         if (editorContent.isNotEmpty()) {
             editorState.setContent(editorContent)
         }
     }
 
-    // Debounced auto-save: save 2s after typing stops
     LaunchedEffect(editorContent) {
         if (editorContent.isNotBlank()) {
             kotlinx.coroutines.delay(2_000)
@@ -106,21 +101,17 @@ fun MainEditorScreen(
         }
     }
 
-    // Show error messages as snackbars
     LaunchedEffect(errorMessage) {
         errorMessage?.let { error ->
             snackbarHostState.showMessage(message = error, actionLabel = "Dismiss")
-            // Clear the error after showing
             viewModel.clearError()
         }
     }
 
-    // Refresh AI availability when screen is resumed
     LaunchedEffect(Unit) {
         viewModel.refreshAiAvailability()
     }
 
-    // Trigger auto-save when app goes to background
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
@@ -133,21 +124,18 @@ fun MainEditorScreen(
         }
     }
 
-    // Auto-navigate to Code tab when AI generation completes successfully
     LaunchedEffect(isAiGenerating) {
         if (!isAiGenerating && editorContent.isNotBlank() && selectedTabIndex == 0) {
-            selectedTabIndex = 1 // Switch to Code tab
+            selectedTabIndex = 1
         }
     }
 
-    // Auto-navigate to Code tab when AI fix completes successfully
     LaunchedEffect(isAiFixing) {
         if (!isAiFixing && editorContent.isNotBlank() && selectedTabIndex != 1) {
             selectedTabIndex = 1
         }
     }
 
-    // Show PNG export result feedback
     LaunchedEffect(pngExportResult) {
         pngExportResult?.let { success ->
             val message = if (success) "PNG exported successfully" else "Failed to export PNG"
@@ -168,13 +156,7 @@ fun MainEditorScreen(
                 tabs.forEachIndexed { index, title ->
                     Tab(
                         selected = selectedTabIndex == index,
-                        onClick = {
-                            if (title == "Examples") {
-                                showExampleDialog = true
-                            } else {
-                                selectedTabIndex = index
-                            }
-                        },
+                        onClick = { selectedTabIndex = index },
                         text = {
                             Text(
                                 title,
@@ -260,24 +242,7 @@ fun MainEditorScreen(
                         }
                     )
 
-                    2 -> {
-                        // Show code content when example tab is "selected" but dialog handles the actual selection
-                        CodeTab(
-                            content = editorContent,
-                            fontSize = fontSize,
-                            onContentChanged = { content ->
-                                viewModel.updateContent(content)
-                                editorState.setContent(content)
-                            },
-                            onShowSnackbar = { message ->
-                                snackbarScope.launch {
-                                    snackbarHostState.showSnackbar(message)
-                                }
-                            }
-                        )
-                    }
-
-                    3 -> PreviewTab(
+                    2 -> PreviewTab(
                         content = editorContent,
                         previewState = previewState,
                         fileExportService = fileExportService,
@@ -303,8 +268,7 @@ fun MainEditorScreen(
                 }
             }
 
-            // Bottom controls section - only show for Code tab
-            if (selectedTabIndex == 1) { // Code tab
+            if (selectedTabIndex == 1) {
                 BottomControlsSection(
                     viewModel = viewModel,
                     context = context,
@@ -312,21 +276,6 @@ fun MainEditorScreen(
                     onFontSizeClick = { showFontSizeDialog = true }
                 )
             }
-        }
-
-        // Examples Dialog
-        if (showExampleDialog) {
-            ExampleSelectionDialog(
-                selectedDiagramType = selectedDiagramType,
-                onDiagramTypeSelected = { type ->
-                    viewModel.setDiagramType(type)
-                    val template = viewModel.generateBasicTemplate()
-                    viewModel.updateContent(template)
-                    editorState.setContent(template)
-                    selectedTabIndex = 1 // Switch to Code tab
-                },
-                onDismiss = { showExampleDialog = false }
-            )
         }
 
         // Font Size Dialog
@@ -348,18 +297,16 @@ fun MainEditorScreen(
             )
         }
 
-        // Full-screen AI generation overlay
         if (isAiGenerating) {
             FullScreenAiLoadingOverlay()
         }
 
-        // Snackbar host at bottom
         ProfessionalSnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
     }
-    // Show Fix with AI error messages
+
     LaunchedEffect(aiFixErrorMessage) {
         aiFixErrorMessage?.let { msg ->
             snackbarScope.launch { snackbarHostState.showMessage(message = msg) }
