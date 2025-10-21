@@ -7,16 +7,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,13 +34,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.mermaidmaker.ui.ai.AiGenerationTab
-import com.example.mermaidmaker.ui.components.ProfessionalSnackbarHost
+import com.example.mermaidmaker.ui.common.showMessage
 import com.example.mermaidmaker.ui.components.ProfessionalLoadingOverlay
+import com.example.mermaidmaker.ui.components.ProfessionalSnackbarHost
 import com.example.mermaidmaker.ui.preview.rememberMermaidPreviewState
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
-import kotlinx.coroutines.launch
-import com.example.mermaidmaker.ui.common.showMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +61,8 @@ fun MainEditorScreen(
     val isAiAvailable by viewModel.isAiAvailable.collectAsState()
     val isAiFixing by viewModel.isAiFixing.collectAsState()
     val aiFixErrorMessage by viewModel.aiFixErrorMessage.collectAsState()
+    val isCodeGenerating by viewModel.isCodeGenerating.collectAsState()
+    val codeGenError by viewModel.codeGenErrorMessage.collectAsState()
     val isAutoSaveEnabled by viewModel.isAutoSaveEnabled.collectAsState()
     val lastAutoSaveTime by viewModel.lastAutoSaveTime.collectAsState()
     val isExportingPng by viewModel.isExportingPng.collectAsState()
@@ -78,13 +79,13 @@ fun MainEditorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
 
-    val tabs = listOf("Text", "Code", "Preview")
+    val tabs = listOf("Text", "Code", "Code to Diagram", "Preview")
 
     LaunchedEffect(diagramId) {
         if (diagramId != null) {
             viewModel.loadDiagram(diagramId)
         } else if (editorContent.isBlank()) {
-           viewModel.loadMostRecent()
+            viewModel.loadMostRecent()
         }
     }
 
@@ -136,6 +137,13 @@ fun MainEditorScreen(
         }
     }
 
+    // Navigate from "Code to Diagram" to "Code" after generation completes
+    LaunchedEffect(isCodeGenerating) {
+        if (!isCodeGenerating && editorContent.isNotBlank() && selectedTabIndex == 2) {
+            selectedTabIndex = 1
+        }
+    }
+
     LaunchedEffect(pngExportResult) {
         pngExportResult?.let { success ->
             val message = if (success) "PNG exported successfully" else "Failed to export PNG"
@@ -147,21 +155,36 @@ fun MainEditorScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // Tab Row
-            TabRow(
+            // Tab Row (professional styling)
+            ScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
+                edgePadding = 12.dp,
                 containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                divider = {},
+                indicator = { tabPositions ->
+                    if (selectedTabIndex in tabPositions.indices) {
+                        TabRowDefaults.Indicator(
+                            modifier = Modifier
+                                .tabIndicatorOffset(tabPositions[selectedTabIndex])
+                                .padding(horizontal = 20.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
                         selected = selectedTabIndex == index,
                         onClick = { selectedTabIndex = index },
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         text = {
                             Text(
                                 title,
                                 style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = if (selectedTabIndex == index) FontWeight.SemiBold else FontWeight.Normal
                                 )
                             )
                         }
@@ -238,11 +261,21 @@ fun MainEditorScreen(
                             editorState.setContent(content)
                         },
                         onShowSnackbar = { message ->
-            snackbarScope.launch { snackbarHostState.showMessage(message) }
+                            snackbarScope.launch { snackbarHostState.showMessage(message) }
                         }
                     )
 
-                    2 -> PreviewTab(
+                    2 -> CodeAnalysisTab(
+                        onGenerateFromCode = { code, lang ->
+                            viewModel.generateFromCode(code, lang)
+                        },
+                        isGenerating = isCodeGenerating,
+                        errorMessage = codeGenError,
+                        isAiAvailable = isAiAvailable,
+                        onRefreshClick = { viewModel.refreshAiAvailability() }
+                    )
+
+                    3 -> PreviewTab(
                         content = editorContent,
                         previewState = previewState,
                         fileExportService = fileExportService,
@@ -265,6 +298,7 @@ fun MainEditorScreen(
                         isExportingPng = isExportingPng,
                         isSharingPng = isSharingPng
                     )
+
                 }
             }
 
@@ -302,9 +336,9 @@ fun MainEditorScreen(
         }
 
         ProfessionalSnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 
     LaunchedEffect(aiFixErrorMessage) {
