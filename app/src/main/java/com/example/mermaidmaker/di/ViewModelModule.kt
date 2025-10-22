@@ -13,6 +13,7 @@ val viewModelModule = module {
         val byType: com.example.mermaidmaker.domain.usecase.GetTemplatesByTypeUseCase = get()
         val repo: com.example.mermaidmaker.domain.repository.DiagramRepository = get()
         val gen: com.example.mermaidmaker.domain.usecase.GenerateAiDiagramUseCase = get()
+        val genFromCode: com.example.mermaidmaker.domain.usecase.GenerateFromCodeUseCase = get()
         val fix: com.example.mermaidmaker.domain.usecase.FixMermaidCodeUseCase = get()
         val prefs: com.example.mermaidmaker.data.local.prefs.EditorPreferences = get()
         val fileExport: com.example.mermaidmaker.domain.service.FileExportService = get()
@@ -21,6 +22,7 @@ val viewModelModule = module {
             byType,
             repo,
             gen,
+            genFromCode,
             fix,
             prefs,
             fileExport

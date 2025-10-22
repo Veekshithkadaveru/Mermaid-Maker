@@ -15,6 +15,7 @@ import com.example.mermaidmaker.domain.usecase.ExportDiagramUseCase
 import com.example.mermaidmaker.domain.usecase.ExportDiagramUseCaseImpl
 import com.example.mermaidmaker.domain.usecase.ExportPngUseCase
 import com.example.mermaidmaker.domain.usecase.GenerateAiDiagramUseCase
+import com.example.mermaidmaker.domain.usecase.GenerateFromCodeUseCase
 import com.example.mermaidmaker.domain.usecase.FixMermaidCodeUseCase
 import com.example.mermaidmaker.domain.usecase.GetAllDiagramsUseCase
 import com.example.mermaidmaker.domain.usecase.GetAllTemplatesUseCase
@@ -45,6 +46,7 @@ val useCaseModule = module {
     factory { UpdateDiagramUseCase(get()) }
     factory { UpdateTemplateUseCase(get()) }
     factory { GenerateAiDiagramUseCase(get(), get()) }
+    factory { GenerateFromCodeUseCase(get(), get()) }
     factory { FixMermaidCodeUseCase(get(), get()) }
     factory { ExportPngUseCase(get(), get()) }
 

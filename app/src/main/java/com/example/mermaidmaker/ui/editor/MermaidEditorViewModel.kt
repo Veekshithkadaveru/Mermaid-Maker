@@ -10,6 +10,7 @@ import com.example.mermaidmaker.domain.model.DiagramType
 import com.example.mermaidmaker.domain.model.Template
 import com.example.mermaidmaker.domain.repository.DiagramRepository
 import com.example.mermaidmaker.domain.usecase.GenerateAiDiagramUseCase
+import com.example.mermaidmaker.data.ai.CodeLanguage
 import com.example.mermaidmaker.domain.usecase.GetBuiltInTemplatesUseCase
 import com.example.mermaidmaker.domain.usecase.GetTemplatesByTypeUseCase
 import kotlinx.coroutines.Job
@@ -28,6 +29,7 @@ class MermaidEditorViewModel(
     private val getTemplatesByTypeUseCase: GetTemplatesByTypeUseCase,
     private val diagramRepository: DiagramRepository,
     private val generateAiDiagramUseCase: GenerateAiDiagramUseCase,
+    private val generateFromCodeUseCase: com.example.mermaidmaker.domain.usecase.GenerateFromCodeUseCase,
     private val fixMermaidCodeUseCase: com.example.mermaidmaker.domain.usecase.FixMermaidCodeUseCase,
     private val editorPreferences: com.example.mermaidmaker.data.local.prefs.EditorPreferences,
     private val fileExportService: com.example.mermaidmaker.domain.service.FileExportService
@@ -66,6 +68,12 @@ class MermaidEditorViewModel(
 
     private val _isAiAvailable = MutableStateFlow(false)
     val isAiAvailable: StateFlow<Boolean> = _isAiAvailable.asStateFlow()
+
+    // Code analysis generation state
+    private val _isCodeGenerating = MutableStateFlow(false)
+    val isCodeGenerating: StateFlow<Boolean> = _isCodeGenerating.asStateFlow()
+    private val _codeGenErrorMessage = MutableStateFlow<String?>(null)
+    val codeGenErrorMessage: StateFlow<String?> = _codeGenErrorMessage.asStateFlow()
 
     // AI fix state
     private val _isAiFixing = MutableStateFlow(false)
@@ -493,6 +501,53 @@ class MermaidEditorViewModel(
             } finally {
                 _isAiGenerating.value = false
             }
+        }
+    }
+
+    /**
+     * Generate a diagram from pasted code using AI with contextual analysis
+     */
+    fun generateFromCode(code: String, language: CodeLanguage) {
+        viewModelScope.launch {
+            try {
+                _isCodeGenerating.value = true
+                _codeGenErrorMessage.value = null
+
+                val result = generateFromCodeUseCase(
+                    code = code,
+                    language = language,
+                    provider = null
+                )
+
+                if (result.isSuccess) {
+                    val mermaidCode = result.getOrThrow()
+                    _editorContent.value = mermaidCode
+                    // Try to infer diagram type roughly from content header
+                    _selectedDiagramType.value = inferDiagramTypeFromMermaid(mermaidCode)
+                } else {
+                    _codeGenErrorMessage.value = result.exceptionOrNull()?.message
+                }
+            } catch (e: Exception) {
+                _codeGenErrorMessage.value = e.message ?: "Failed to generate from code"
+            } finally {
+                _isCodeGenerating.value = false
+            }
+        }
+    }
+
+    private fun inferDiagramTypeFromMermaid(mermaid: String): DiagramType {
+        val trimmed = mermaid.trim().lowercase()
+        return when {
+            trimmed.startsWith("classdiagram") -> DiagramType.CLASS
+            trimmed.startsWith("erdiagram") -> DiagramType.ER_DIAGRAM
+            trimmed.startsWith("sequenceDiagram".lowercase()) -> DiagramType.SEQUENCE
+            trimmed.startsWith("stateDiagram-v2".lowercase()) -> DiagramType.STATE
+            trimmed.startsWith("gantt") -> DiagramType.GANTT
+            trimmed.startsWith("pie ") || trimmed.startsWith("pie\n") -> DiagramType.PIE
+            trimmed.startsWith("gitgraph") -> DiagramType.GITGRAPH
+            trimmed.startsWith("journey") -> DiagramType.JOURNEY
+            trimmed.startsWith("graph ") -> DiagramType.FLOWCHART
+            else -> _selectedDiagramType.value
         }
     }
 
