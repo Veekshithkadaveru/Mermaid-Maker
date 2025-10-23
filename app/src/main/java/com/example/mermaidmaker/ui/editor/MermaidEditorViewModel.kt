@@ -32,7 +32,8 @@ class MermaidEditorViewModel(
     private val generateFromCodeUseCase: com.example.mermaidmaker.domain.usecase.GenerateFromCodeUseCase,
     private val fixMermaidCodeUseCase: com.example.mermaidmaker.domain.usecase.FixMermaidCodeUseCase,
     private val editorPreferences: com.example.mermaidmaker.data.local.prefs.EditorPreferences,
-    private val fileExportService: com.example.mermaidmaker.domain.service.FileExportService
+    private val fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
+    private val explainDiagramUseCase: com.example.mermaidmaker.domain.usecase.ExplainDiagramUseCase
 ) : ViewModel() {
 
     private val _editorContent = MutableStateFlow("")
@@ -97,6 +98,14 @@ class MermaidEditorViewModel(
 
     private val _pngExportResult = MutableStateFlow<Boolean?>(null)
     val pngExportResult: StateFlow<Boolean?> = _pngExportResult.asStateFlow()
+
+    // Explain feature state
+    private val _isExplaining = MutableStateFlow(false)
+    val isExplaining: StateFlow<Boolean> = _isExplaining.asStateFlow()
+    private val _explainErrorMessage = MutableStateFlow<String?>(null)
+    val explainErrorMessage: StateFlow<String?> = _explainErrorMessage.asStateFlow()
+    private val _explanation = MutableStateFlow<com.example.mermaidmaker.domain.model.DiagramExplanation?>(null)
+    val explanation: StateFlow<com.example.mermaidmaker.domain.model.DiagramExplanation?> = _explanation.asStateFlow()
 
     private var autoSaveJob: Job? = null
     private var lastContentSnapshot = ""
@@ -323,6 +332,38 @@ class MermaidEditorViewModel(
             _errorMessage.value = "Nothing to paste"
             return _editorContent.value
         }
+    }
+
+    /**
+     * Explain the current diagram using AI.
+     */
+    fun explainCurrentDiagram() {
+        val source = _editorContent.value
+        viewModelScope.launch {
+            try {
+                _isExplaining.value = true
+                _explainErrorMessage.value = null
+                _explanation.value = null
+                val result = explainDiagramUseCase(source)
+                if (result.isSuccess) {
+                    _explanation.value = result.getOrNull()
+                } else {
+                    _explainErrorMessage.value = result.exceptionOrNull()?.message
+                }
+            } catch (e: Exception) {
+                _explainErrorMessage.value = e.message ?: "Failed to explain diagram"
+            } finally {
+                _isExplaining.value = false
+            }
+        }
+    }
+
+    /**
+     * Clear the current explanation and related error state.
+     */
+    fun clearExplanation() {
+        _explanation.value = null
+        _explainErrorMessage.value = null
     }
 
     /**

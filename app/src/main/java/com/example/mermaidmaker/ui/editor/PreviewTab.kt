@@ -20,9 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -56,10 +58,15 @@ fun PreviewTab(
     fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
     onShowSnackbar: (String) -> Unit,
     onFixWithAi: (String) -> Unit = {},
+    onExplain: () -> Unit = {},
+    onCloseExplanation: () -> Unit = {},
     onExportPng: () -> Unit = {},
     onSharePng: () -> Unit = {},
     isExportingPng: Boolean = false,
-    isSharingPng: Boolean = false
+    isSharingPng: Boolean = false,
+    isExplaining: Boolean = false,
+    explanation: com.example.mermaidmaker.domain.model.DiagramExplanation? = null,
+    explainError: String? = null
 ) {
     var zoomLevel by remember { mutableStateOf(100) }
     val isPreviewLoading by previewState.isLoading.collectAsState()
@@ -109,9 +116,29 @@ fun PreviewTab(
                     }
                 }
 
-                // Export/Share controls + Fix with AI
+                // Export/Share controls + AI actions
                 if (content.isNotBlank()) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Explain button (uses existing Share icon for MVP)
+                        IconButton(
+                            onClick = onExplain,
+                            enabled = !isExplaining
+                        ) {
+                            if (isExplaining) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                androidx.compose.foundation.Image(
+                                    painter = rememberVectorPainter(image = Icons.Filled.Info),
+                                    contentDescription = "Explain diagram"
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(8.dp))
+
                         // PNG Download
                         IconButton(
                             onClick = {
@@ -221,6 +248,57 @@ fun PreviewTab(
                             title = "Rendering diagram...",
                             isVisible = true
                         )
+                    }
+
+                    // Explanation feedback overlay
+                    if (isExplaining) {
+                        ProfessionalLoadingOverlay(
+                            title = "Explaining diagram...",
+                            isVisible = true
+                        )
+                    } else if (explainError != null) {
+                        Card(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Text(
+                                modifier = Modifier.padding(12.dp),
+                                text = explainError,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    } else if (!explanation?.summary.isNullOrBlank()) {
+                        Card(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                androidx.compose.foundation.layout.Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val title = explanation?.title ?: "Diagram explanation"
+                                    Text(title, style = MaterialTheme.typography.titleMedium)
+                                    IconButton(onClick = onCloseExplanation) {
+                                        androidx.compose.foundation.Image(
+                                            painter = rememberVectorPainter(image = Icons.Filled.Close),
+                                            contentDescription = "Close explanation"
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(explanation?.summary ?: "")
+                            }
+                        }
                     }
                 }
             }

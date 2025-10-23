@@ -43,4 +43,14 @@ interface AiDiagramService {
         provider: AiProvider,
         apiKey: String
     ): Result<String>
+
+    /**
+     * Produce a structured explanation and improvement suggestions for a Mermaid diagram.
+     * Implementations should return best-effort JSON parsing; include raw text when parsing fails.
+     */
+    suspend fun explainDiagram(
+        source: String,
+        provider: AiProvider,
+        apiKey: String
+    ): Result<com.example.mermaidmaker.domain.model.DiagramExplanation>
 }

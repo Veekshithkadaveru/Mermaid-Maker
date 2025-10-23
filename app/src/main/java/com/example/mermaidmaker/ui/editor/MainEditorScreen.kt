@@ -68,6 +68,9 @@ fun MainEditorScreen(
     val isExportingPng by viewModel.isExportingPng.collectAsState()
     val isSharingPng by viewModel.isSharingPng.collectAsState()
     val pngExportResult by viewModel.pngExportResult.collectAsState()
+    val isExplaining by viewModel.isExplaining.collectAsState()
+    val explanation by viewModel.explanation.collectAsState()
+    val explainError by viewModel.explainErrorMessage.collectAsState()
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -141,6 +144,13 @@ fun MainEditorScreen(
     LaunchedEffect(isCodeGenerating) {
         if (!isCodeGenerating && editorContent.isNotBlank() && selectedTabIndex == 2) {
             selectedTabIndex = 1
+        }
+    }
+
+    // Auto-close explanation when leaving Preview tab
+    LaunchedEffect(selectedTabIndex) {
+        if (selectedTabIndex != 3) {
+            viewModel.clearExplanation()
         }
     }
 
@@ -289,6 +299,8 @@ fun MainEditorScreen(
                         onFixWithAi = { source ->
                             viewModel.fixMermaidWithAi(source)
                         },
+                        onExplain = { viewModel.explainCurrentDiagram() },
+                        onCloseExplanation = { viewModel.clearExplanation() },
                         onExportPng = {
                             viewModel.exportDiagramAsPng(previewState)
                         },
@@ -296,7 +308,10 @@ fun MainEditorScreen(
                             viewModel.shareDiagramAsPng(previewState)
                         },
                         isExportingPng = isExportingPng,
-                        isSharingPng = isSharingPng
+                        isSharingPng = isSharingPng,
+                        isExplaining = isExplaining,
+                        explanation = explanation,
+                        explainError = explainError
                     )
 
                 }

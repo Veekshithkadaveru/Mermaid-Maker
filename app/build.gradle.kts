@@ -102,4 +102,6 @@ dependencies {
 
     // AndroidSVG for reliable SVG -> Bitmap rendering (export PNG)
     implementation(libs.androidsvg)
+
+    // Removed kotlinx-serialization; using Gson for JSON parsing
 }
