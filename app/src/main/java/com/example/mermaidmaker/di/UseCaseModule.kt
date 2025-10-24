@@ -24,6 +24,7 @@ import com.example.mermaidmaker.domain.usecase.GetTemplatesByTypeUseCase
 import com.example.mermaidmaker.domain.usecase.InitializeTemplatesUseCase
 import com.example.mermaidmaker.domain.usecase.UpdateDiagramUseCase
 import com.example.mermaidmaker.domain.usecase.UpdateTemplateUseCase
+import com.example.mermaidmaker.domain.usecase.ExplainDiagramUseCase
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 
@@ -49,6 +50,7 @@ val useCaseModule = module {
     factory { GenerateFromCodeUseCase(get(), get()) }
     factory { FixMermaidCodeUseCase(get(), get()) }
     factory { ExportPngUseCase(get(), get()) }
+    factory { ExplainDiagramUseCase(get(), get()) }
 
     // Infrastructure
     single { TemplateLoader(get()) }

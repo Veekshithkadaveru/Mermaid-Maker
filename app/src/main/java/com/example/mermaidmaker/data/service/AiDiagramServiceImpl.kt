@@ -181,6 +181,89 @@ class AiDiagramServiceImpl(
         }
     }
 
+    override suspend fun explainDiagram(
+        source: String,
+        provider: AiProvider,
+        apiKey: String
+    ): Result<com.example.mermaidmaker.domain.model.DiagramExplanation> = withContext(Dispatchers.IO) {
+        try {
+            if (source.isBlank()) return@withContext Result.failure(IllegalArgumentException("Source cannot be empty"))
+
+            val system = "You are Mermaid Diagram Analyst. Return a concise analysis JSON matching this Kotlin data model keys: title, summary, components[{id,role}], flows[{name,steps[]}], smells[{type,item,severity}], suggestions[{title,rationale,type,diff,patch,code}], tags[], risk. Keep it factual to the provided source; do not invent nodes."
+            val user = buildString {
+                appendLine("Analyze this Mermaid source and produce the JSON. If JSON may exceed length, keep fields terse. After JSON, include a short plain summary after a line with '---'.")
+                appendLine()
+                appendLine("MERMAID SOURCE:")
+                appendLine(source)
+            }
+
+            val raw: String = when (provider) {
+                AiProvider.OPENAI -> {
+                    val request = ChatCompletionRequest(
+                        model = "gpt-4o-mini",
+                        messages = listOf(
+                            ChatMessage("system", system),
+                            ChatMessage("user", user)
+                        ),
+                        max_tokens = 1200,
+                        temperature = 0.2
+                    )
+                    val resp = openAiApiService.generateDiagram("Bearer $apiKey", request)
+                    if (!resp.isSuccessful) throw HttpException(resp)
+                    resp.body()?.choices?.firstOrNull()?.message?.content
+                        ?: throw Exception("Empty response from OpenAI for explain")
+                }
+                AiProvider.GEMINI -> {
+                    val combined = "$system\n\n$user"
+                    val request = GeminiGenerateRequest(
+                        contents = listOf(GeminiContent(parts = listOf(GeminiPart(text = combined)))),
+                        generationConfig = GeminiGenerationConfig(
+                            temperature = 0.2,
+                            maxOutputTokens = 900
+                        )
+                    )
+                    val models = listOf(
+                        "gemini-2.0-flash-001",
+                        "gemini-2.0-flash",
+                        "gemini-2.5-flash",
+                        "gemini-1.5-flash"
+                    )
+                    var text: String? = null
+                    for (model in models) {
+                        val resp = geminiApiService.generateContent(apiKey, model, request, apiKey)
+                        if (!resp.isSuccessful) continue
+                        val parts = resp.body()?.candidates?.firstOrNull()?.content?.parts
+                        text = parts?.firstOrNull()?.text
+                        if (!text.isNullOrBlank()) break
+                    }
+                    text ?: throw Exception("Empty response from Gemini for explain")
+                }
+            }
+
+            // Try to parse JSON section first; if unavailable, return rawText only
+            val jsonStart = raw.indexOf('{')
+            val jsonEnd = raw.lastIndexOf('}')
+            val jsonSlice = if (jsonStart >= 0 && jsonEnd > jsonStart) raw.substring(jsonStart, jsonEnd + 1) else null
+            val explanation = try {
+                if (jsonSlice != null) {
+                    com.google.gson.Gson().fromJson(
+                        jsonSlice,
+                        com.example.mermaidmaker.domain.model.DiagramExplanation::class.java
+                    )
+                } else null
+            } catch (_: Exception) { null }
+
+            val result = explanation ?: com.example.mermaidmaker.domain.model.DiagramExplanation(
+                rawText = raw.take(2000)
+            )
+            Result.success(result)
+        } catch (e: HttpException) {
+            Result.failure(Exception("API error (${e.code()}): ${e.message()}"))
+        } catch (e: Exception) {
+            Result.failure(Exception("Unexpected error: ${e.message}"))
+        }
+    }
+
     /**
      * Generate diagram using OpenAI's GPT API
      */
