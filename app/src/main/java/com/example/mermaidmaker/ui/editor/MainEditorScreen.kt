@@ -49,7 +49,7 @@ fun MainEditorScreen(
     viewModel: MermaidEditorViewModel = koinViewModel()
 ) {
     val fileExportService: com.example.mermaidmaker.domain.service.FileExportService = koinInject()
-    var selectedTabIndex by remember { mutableStateOf(1) } // Start with "Code" tab
+    var selectedTabIndex by remember { mutableStateOf(1) }
     var showFontSizeDialog by remember { mutableStateOf(false) }
     val editorContent by viewModel.editorContent.collectAsState()
     val selectedDiagramType by viewModel.selectedDiagramType.collectAsState()
@@ -288,14 +288,6 @@ fun MainEditorScreen(
                     3 -> PreviewTab(
                         content = editorContent,
                         previewState = previewState,
-                        fileExportService = fileExportService,
-                        onShowSnackbar = { message ->
-                            snackbarScope.launch {
-                                snackbarHostState.showSnackbar(
-                                    message = message
-                                )
-                            }
-                        },
                         onFixWithAi = { source ->
                             viewModel.fixMermaidWithAi(source)
                         },
