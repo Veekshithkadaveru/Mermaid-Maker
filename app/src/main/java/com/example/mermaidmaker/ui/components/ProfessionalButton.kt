@@ -4,9 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -16,23 +13,17 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -40,12 +31,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.mermaidmaker.ui.theme.AnimationDuration
 import com.example.mermaidmaker.ui.theme.ComponentHeight
 import com.example.mermaidmaker.ui.theme.CornerRadius
@@ -194,7 +184,6 @@ fun ProfessionalFloatingActionButton(
     icon: ImageVector,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    expanded: Boolean = false,
     label: String? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -203,70 +192,92 @@ fun ProfessionalFloatingActionButton(
     
     val scale by animateFloatAsState(
         targetValue = when {
-            isPressed && enabled -> 0.92f
-            isHovered && enabled -> 1.05f
+            isPressed && enabled -> 0.95f
+            isHovered && enabled -> 1.02f
             else -> 1f
         },
-        animationSpec = tween(AnimationDuration.normal),
+        animationSpec = tween(200),
         label = "fab_scale"
+    )
+    
+    val elevation by animateFloatAsState(
+        targetValue = when {
+            !enabled -> 2f
+            isPressed -> 4f
+            isHovered -> 12f
+            else -> 6f
+        },
+        animationSpec = tween(200),
+        label = "fab_elevation"
     )
     
     val backgroundColor by animateColorAsState(
         targetValue = when {
-            !enabled -> MaterialTheme.colorScheme.outline
-            isPressed -> MaterialTheme.colorScheme.primaryContainer
+            !enabled -> MaterialTheme.colorScheme.surfaceVariant
+            isPressed -> MaterialTheme.colorScheme.tertiary
+            isHovered -> MaterialTheme.colorScheme.secondary
             else -> MaterialTheme.colorScheme.primary
         },
-        animationSpec = tween(AnimationDuration.fast),
+        animationSpec = tween(200),
         label = "fab_background"
+    )
+    
+    val contentColor by animateColorAsState(
+        targetValue = when {
+            !enabled -> MaterialTheme.colorScheme.onSurfaceVariant
+            isPressed -> MaterialTheme.colorScheme.onTertiary
+            isHovered -> MaterialTheme.colorScheme.onSecondary
+            else -> MaterialTheme.colorScheme.onPrimary
+        },
+        animationSpec = tween(200),
+        label = "fab_content"
     )
 
     Surface(
         onClick = onClick,
         modifier = modifier.scale(scale),
         enabled = enabled,
-        shape = if (expanded && label != null) {
-            RoundedCornerShape(CornerRadius.xl)
-        } else {
-            RoundedCornerShape(CornerRadius.xl)
-        },
+        shape = RoundedCornerShape(24.dp),
         color = backgroundColor,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        shadowElevation = if (isHovered) 8.dp else 6.dp,
+        contentColor = contentColor,
+        shadowElevation = elevation.dp,
+        tonalElevation = 3.dp,
         interactionSource = interactionSource
     ) {
-        if (expanded && label != null) {
+        if (label != null) {
             Row(
                 modifier = Modifier.padding(
-                    horizontal = Spacing.lg,
-                    vertical = Spacing.md
+                    horizontal = 20.dp,
+                    vertical = 16.dp
                 ),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.size(IconSize.lg)
+                    modifier = Modifier.size(20.dp)
                 )
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.SemiBold
-                    )
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.5.sp
+                    ),
+                    maxLines = 1
                 )
             }
         } else {
             Box(
                 modifier = Modifier
-                    .size(ComponentHeight.fab)
-                    .padding(Spacing.lg),
+                    .size(56.dp)
+                    .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = label,
-                    modifier = Modifier.size(IconSize.lg)
+                    contentDescription = "Action",
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }

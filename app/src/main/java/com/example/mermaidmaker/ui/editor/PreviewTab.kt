@@ -2,29 +2,32 @@ package com.example.mermaidmaker.ui.editor
 
 import android.annotation.SuppressLint
 import android.util.Log
-import android.webkit.ConsoleMessage
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,7 +36,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,19 +46,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import com.example.mermaidmaker.ui.common.WebViewUtils
-import com.example.mermaidmaker.data.processing.*
+import com.example.mermaidmaker.ui.components.ProfessionalFloatingActionButton
 import com.example.mermaidmaker.ui.components.ProfessionalLoadingOverlay
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.SwapVert
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun PreviewTab(
     content: String,
     previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
-    fileExportService: com.example.mermaidmaker.domain.service.FileExportService,
-    onShowSnackbar: (String) -> Unit,
     onFixWithAi: (String) -> Unit = {},
     onExplain: () -> Unit = {},
     onCloseExplanation: () -> Unit = {},
@@ -119,25 +116,6 @@ fun PreviewTab(
                 // Export/Share controls + AI actions
                 if (content.isNotBlank()) {
                     androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Explain button (uses existing Share icon for MVP)
-                        IconButton(
-                            onClick = onExplain,
-                            enabled = !isExplaining
-                        ) {
-                            if (isExplaining) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                androidx.compose.foundation.Image(
-                                    painter = rememberVectorPainter(image = Icons.Filled.Info),
-                                    contentDescription = "Explain diagram"
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.width(8.dp))
 
                         // PNG Download
                         IconButton(
@@ -250,13 +228,8 @@ fun PreviewTab(
                         )
                     }
 
-                    // Explanation feedback overlay
-                    if (isExplaining) {
-                        ProfessionalLoadingOverlay(
-                            title = "Explaining diagram...",
-                            isVisible = true
-                        )
-                    } else if (explainError != null) {
+                    // Explanation feedback overlay (error only; content handled by container transform)
+                    if (explainError != null) {
                         Card(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
@@ -271,139 +244,108 @@ fun PreviewTab(
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
                         }
-                    } else if (!explanation?.summary.isNullOrBlank()) {
-                        Card(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                    }
+
+                    // Clean FAB and explanation overlay
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        // Always visible Extended FAB
+                        if (!isExplaining && explanation?.summary?.isBlank() != false) {
+                            ProfessionalFloatingActionButton(
+                                onClick = onExplain,
+                                icon = Icons.Filled.Psychology,
+                                enabled = content.isNotBlank() && !isExplaining,
+                                label = "Explain Diagram",
+                                modifier = Modifier.align(Alignment.BottomEnd)
                             )
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                androidx.compose.foundation.layout.Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                        }
+
+                        // Explanation loading overlay
+                        if (isExplaining) {
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .width(280.dp)
+                                    .heightIn(min = 120.dp, max = 160.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                tonalElevation = 8.dp
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    val title = explanation?.title ?: "Diagram explanation"
-                                    Text(title, style = MaterialTheme.typography.titleMedium)
-                                    IconButton(onClick = onCloseExplanation) {
-                                        androidx.compose.foundation.Image(
-                                            painter = rememberVectorPainter(image = Icons.Filled.Close),
-                                            contentDescription = "Close explanation"
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator(strokeWidth = 2.dp)
+                                        Spacer(Modifier.height(12.dp))
+                                        Text(
+                                            "Explaining diagram...", 
+                                            style = MaterialTheme.typography.bodyMedium
                                         )
                                     }
                                 }
-                                Spacer(Modifier.height(4.dp))
-                                Text(explanation?.summary ?: "")
+                            }
+                        }
+
+                        // Explanation result card
+                        if (explanation?.summary?.isNotBlank() == true) {
+                            BoxWithConstraints(modifier = Modifier.align(Alignment.Center)) {
+                                val screenWidth = maxWidth
+                                val screenHeight = maxHeight
+                                val targetWidth = (screenWidth * 0.92f)
+                                val maxHeight = if (screenHeight * 0.7f < 420.dp) screenHeight * 0.7f else 420.dp
+
+                                Surface(
+                                    modifier = Modifier
+                                        .width(targetWidth)
+                                        .heightIn(min = 120.dp, max = maxHeight)
+                                        .animateContentSize(animationSpec = tween(360, easing = FastOutSlowInEasing)),
+                                    shape = RoundedCornerShape(16.dp),
+                                    tonalElevation = 8.dp
+                                ) {
+                                    Box {
+                                        IconButton(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(4.dp),
+                                            onClick = onCloseExplanation
+                                        ) {
+                                            androidx.compose.foundation.Image(
+                                                painter = rememberVectorPainter(image = Icons.Filled.Close),
+                                                contentDescription = "Close explanation"
+                                            )
+                                        }
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            val title = explanation?.title ?: "Diagram explanation"
+                                            Text(
+                                                title,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(
+                                                explanation?.summary.orEmpty(),
+                                                textAlign = TextAlign.Center,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun FullScreenMermaidPreview(
-    content: String,
-    zoomLevel: Int,
-    modifier: Modifier = Modifier,
-    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null,
-    onFixWithAi: (String) -> Unit = {}
-) {
-    var webView by remember { mutableStateOf<WebView?>(null) }
-    var isReady by remember { mutableStateOf(false) }
-
-    AndroidView(
-        modifier = modifier,
-        factory = { context ->
-            val newWebView = WebView(context)
-            webView = newWebView
-            setupFullScreenWebView(newWebView, onReady = {
-                isReady = true
-
-                previewState?.setWebView(newWebView)
-                previewState?.setReady(true)
-            }, previewState = previewState, onFixWithAi = onFixWithAi)
-            newWebView
-        },
-        update = { wv ->
-            if (isReady) {
-
-                val scale = zoomLevel / 100f
-                wv.evaluateJavascript("setScale($scale);", null)
-            }
-        }
-    )
-
-    // Render content when it changes
-    LaunchedEffect(content, isReady) {
-        if (isReady && content.isNotBlank()) {
-            // Set loading state before rendering
-            previewState?.setLoading(true)
-            previewState?.setError(null)
-            webView?.evaluateJavascript("renderMermaid(`${content.escapeForJs()}`);", null)
-            // Note: Don't call previewState?.renderDiagram() here to avoid duplicate loading states
-        } else if (isReady && content.isBlank()) {
-            previewState?.setLoading(false)
-            webView?.evaluateJavascript("clearPreview();", null)
-            previewState?.clearPreview()
-        }
-    }
-
-    // Apply zoom when it changes
-    LaunchedEffect(zoomLevel, isReady) {
-        if (isReady) {
-            val scale = zoomLevel / 100f
-            webView?.evaluateJavascript("setScale($scale);", null)
-        }
-    }
-}
-
-@SuppressLint("SetJavaScriptEnabled")
-fun setupFullScreenWebView(
-    webView: WebView,
-    onReady: () -> Unit,
-    previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState? = null,
-    onFixWithAi: (String) -> Unit = {}
-) {
-    webView.apply {
-        WebViewUtils.applyCommonPreviewSettings(this)
-        // JavaScript interface - compatible with MermaidPreview
-        val jsInterface = object {
-            @android.webkit.JavascriptInterface
-            fun onWebViewReady() {
-                onReady()
-            }
-
-            @android.webkit.JavascriptInterface
-            fun onRenderSuccess(svgLength: Int) {
-                Log.d("FullScreenMermaidPreview", "Render success: $svgLength characters")
-                previewState?.setLoading(false)
-                previewState?.setError(null)
-            }
-
-            @android.webkit.JavascriptInterface
-            fun onRenderError(error: String) {
-                Log.e("FullScreenMermaidPreview", "Render error: $error")
-                previewState?.setLoading(false)
-                previewState?.setError(error)
-            }
-
-            @android.webkit.JavascriptInterface
-            fun onFixWithAi(source: String) {
-                Log.d("FullScreenMermaidPreview", "Fix with AI requested, length=${'$'}{source.length}")
-                onFixWithAi(source)
-            }
-        }
-
-        addJavascriptInterface(jsInterface, "Android")
-        webViewClient = WebViewUtils.createAssetsOnlyClient(tag = "FullScreenMermaidPreview")
-        webChromeClient = WebViewUtils.createConsoleLoggingChromeClient(tag = "FullScreenMermaidPreview")
-        loadUrl("file:///android_asset/mermaid_preview.html")
     }
 }
 
