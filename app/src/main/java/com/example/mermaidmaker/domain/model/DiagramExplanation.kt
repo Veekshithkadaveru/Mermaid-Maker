@@ -12,7 +12,7 @@ data class DiagramExplanation(
     val smells: List<ExplainedSmell> = emptyList(),
     val suggestions: List<ExplainedSuggestion> = emptyList(),
     val tags: List<String> = emptyList(),
-    val risk: String? = null,
+    val risk: ExplainedRisk? = null,
     val rawText: String? = null
 )
 
@@ -29,7 +29,8 @@ data class ExplainedFlow(
 data class ExplainedSmell(
     val type: String? = null,
     val item: String? = null,
-    val severity: String? = null
+    val severity: String? = null,
+    val explanation: String? = null
 )
 
 data class ExplainedSuggestion(
@@ -39,6 +40,13 @@ data class ExplainedSuggestion(
     val diff: String? = null,
     val patch: String? = null,
     val code: String? = null
+)
+
+data class ExplainedRisk(
+    val complexity: String? = null,
+    val maintainability: String? = null,
+    val potential_issues: String? = null,
+    val explanation: String? = null
 )
 
 
