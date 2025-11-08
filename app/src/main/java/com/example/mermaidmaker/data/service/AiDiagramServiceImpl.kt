@@ -90,7 +90,6 @@ class AiDiagramServiceImpl(
                 }
 
                 AiProvider.GEMINI -> {
-                    // Avoid calling GET /models due to occasional 400s; treat non-empty key as tentatively valid.
                     apiKey.isNotBlank()
                 }
             }
@@ -189,9 +188,36 @@ class AiDiagramServiceImpl(
         try {
             if (source.isBlank()) return@withContext Result.failure(IllegalArgumentException("Source cannot be empty"))
 
-            val system = "You are Mermaid Diagram Analyst. Return a concise analysis JSON matching this Kotlin data model keys: title, summary, components[{id,role}], flows[{name,steps[]}], smells[{type,item,severity}], suggestions[{title,rationale,type,diff,patch,code}], tags[], risk. Keep it factual to the provided source; do not invent nodes."
+            val system = """You are an expert Mermaid Diagram Analyst and educator. Your goal is to provide comprehensive, educational explanations that help users understand their diagrams thoroughly.
+
+Return a detailed analysis JSON matching this Kotlin data model:
+- title: A clear, descriptive title for the diagram
+- summary: A comprehensive paragraph explaining the diagram's purpose, context, and overall architecture (3-5 sentences)
+- components: Array of {id, role} where role is a detailed explanation of each component's purpose and responsibilities
+- flows: Array of {name, steps[]} describing processes with detailed step-by-step explanations
+- smells: Array of {type, item, severity} identifying potential issues with detailed explanations
+- suggestions: Array of {title, rationale, type, diff, patch, code} with thorough improvement recommendations and detailed rationales
+- tags: Relevant technical tags and categories
+- risk: Assessment of complexity, maintainability, and potential issues with explanations
+
+Provide educational value by:
+1. Explaining WHY components are designed this way
+2. Describing HOW the data/control flows work
+3. Identifying design patterns and architectural concepts
+4. Suggesting best practices and improvements
+5. Explaining technical concepts that beginners might not understand
+
+Be factual to the provided source but add educational context and insights."""
             val user = buildString {
-                appendLine("Analyze this Mermaid source and produce the JSON. If JSON may exceed length, keep fields terse. After JSON, include a short plain summary after a line with '---'.")
+                appendLine("Analyze this Mermaid diagram thoroughly and provide an educational, comprehensive explanation.")
+                appendLine("Focus on helping users learn and understand:")
+                appendLine("- The architectural patterns and design decisions")
+                appendLine("- How each component contributes to the overall system")
+                appendLine("- The flow of data/control and why it's structured this way")
+                appendLine("- Best practices and potential improvements")
+                appendLine("- Technical concepts that might be unfamiliar to beginners")
+                appendLine()
+                appendLine("Produce detailed JSON analysis followed by a comprehensive plain text summary after '---'.")
                 appendLine()
                 appendLine("MERMAID SOURCE:")
                 appendLine(source)
@@ -205,7 +231,7 @@ class AiDiagramServiceImpl(
                             ChatMessage("system", system),
                             ChatMessage("user", user)
                         ),
-                        max_tokens = 1200,
+                        max_tokens = 2500,
                         temperature = 0.2
                     )
                     val resp = openAiApiService.generateDiagram("Bearer $apiKey", request)
@@ -219,7 +245,7 @@ class AiDiagramServiceImpl(
                         contents = listOf(GeminiContent(parts = listOf(GeminiPart(text = combined)))),
                         generationConfig = GeminiGenerationConfig(
                             temperature = 0.2,
-                            maxOutputTokens = 900
+                            maxOutputTokens = 2000
                         )
                     )
                     val models = listOf(
@@ -241,17 +267,51 @@ class AiDiagramServiceImpl(
             }
 
             // Try to parse JSON section first; if unavailable, return rawText only
-            val jsonStart = raw.indexOf('{')
-            val jsonEnd = raw.lastIndexOf('}')
-            val jsonSlice = if (jsonStart >= 0 && jsonEnd > jsonStart) raw.substring(jsonStart, jsonEnd + 1) else null
+            Log.d(TAG, "Raw response from AI: $raw")
+            
+            // Find the first complete JSON object
+            var jsonStart = -1
+            var jsonEnd = -1
+            var braceCount = 0
+            
+            for (i in raw.indices) {
+                when (raw[i]) {
+                    '{' -> {
+                        if (jsonStart == -1) jsonStart = i
+                        braceCount++
+                    }
+                    '}' -> {
+                        braceCount--
+                        if (braceCount == 0 && jsonStart != -1) {
+                            jsonEnd = i
+                            break
+                        }
+                    }
+                }
+            }
+            
+            val jsonSlice = if (jsonStart >= 0 && jsonEnd > jsonStart) {
+                raw.substring(jsonStart, jsonEnd + 1)
+            } else null
+            
+            Log.d(TAG, "Extracted JSON slice: $jsonSlice")
+            
             val explanation = try {
                 if (jsonSlice != null) {
-                    com.google.gson.Gson().fromJson(
+                    val parsed = com.google.gson.Gson().fromJson(
                         jsonSlice,
                         com.example.mermaidmaker.domain.model.DiagramExplanation::class.java
                     )
-                } else null
-            } catch (_: Exception) { null }
+                    Log.d(TAG, "Successfully parsed explanation: ${parsed.title}, summary: ${parsed.summary}")
+                    parsed
+                } else {
+                    Log.w(TAG, "No valid JSON found in response")
+                    null
+                }
+            } catch (e: Exception) { 
+                Log.e(TAG, "Failed to parse JSON: ${e.message}")
+                null 
+            }
 
             val result = explanation ?: com.example.mermaidmaker.domain.model.DiagramExplanation(
                 rawText = raw.take(2000)
@@ -281,7 +341,7 @@ class AiDiagramServiceImpl(
                 ChatMessage("user", prompt)
             ),
             max_tokens = 1500,
-            temperature = 0.3 // Low temperature for more consistent output
+            temperature = 0.3
         )
 
         val response = openAiApiService.generateDiagram("Bearer $apiKey", request)
@@ -429,7 +489,7 @@ class AiDiagramServiceImpl(
         throw Exception("Gemini model not found or returned no usable content")
     }
 
-    private suspend fun getGeminiModelsSupportingGenerateContent(apiKey: String): List<String> {
+    private fun getGeminiModelsSupportingGenerateContent(apiKey: String): List<String> {
         // Return empty to use the built-in preference order without hitting the models endpoint.
         return emptyList()
     }
