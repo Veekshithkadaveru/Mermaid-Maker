@@ -1,7 +1,5 @@
 package com.example.mermaidmaker.ui.editor
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -99,6 +97,16 @@ class MermaidEditorViewModel(
     private val _pngExportResult = MutableStateFlow<Boolean?>(null)
     val pngExportResult: StateFlow<Boolean?> = _pngExportResult.asStateFlow()
 
+    // SVG export state
+    private val _isExportingSvg = MutableStateFlow(false)
+    val isExportingSvg: StateFlow<Boolean> = _isExportingSvg.asStateFlow()
+
+    private val _isSharingSvg = MutableStateFlow(false)
+    val isSharingSvg: StateFlow<Boolean> = _isSharingSvg.asStateFlow()
+
+    private val _svgExportResult = MutableStateFlow<Boolean?>(null)
+    val svgExportResult: StateFlow<Boolean?> = _svgExportResult.asStateFlow()
+
     // Explain feature state
     private val _isExplaining = MutableStateFlow(false)
     val isExplaining: StateFlow<Boolean> = _isExplaining.asStateFlow()
@@ -109,7 +117,7 @@ class MermaidEditorViewModel(
 
     private var autoSaveJob: Job? = null
     private var lastContentSnapshot = ""
-    private val AUTO_SAVE_INTERVAL_MS = 30_000L // 30 seconds
+    private val AUTO_SAVE_INTERVAL_MS = 30_000L
 
     init {
         loadTemplates()
@@ -211,45 +219,6 @@ class MermaidEditorViewModel(
     }
 
     /**
-     * Save the current diagram (update if existing, create if new)
-     */
-    fun saveDiagram(onSuccess: (String) -> Unit, onError: (Exception) -> Unit) {
-        viewModelScope.launch {
-            try {
-                _isLoading.value = true
-                _errorMessage.value = null
-
-                val currentId = _currentDiagramId.value
-                val title = _diagramTitle.value.ifEmpty { "Untitled Diagram" }
-                val content = _editorContent.value
-
-                if (currentId != null) {
-                    // Update existing diagram
-                    val existingDiagram = diagramRepository.getDiagramById(currentId)
-                    if (existingDiagram != null) {
-                        val updatedDiagram = existingDiagram.copy(
-                            title = title,
-                            content = content,
-                            diagramType = _selectedDiagramType.value,
-                            updatedAt = java.time.LocalDateTime.now()
-                        )
-                        diagramRepository.updateDiagram(updatedDiagram)
-                        onSuccess("Diagram updated successfully!")
-                    } else {
-                        onError(Exception("Diagram not found"))
-                    }
-                } else {
-                    onError(Exception("No diagram loaded to save. Use 'Create Diagram' to create a new one."))
-                }
-            } catch (e: Exception) {
-                onError(e)
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    /**
      * Set the diagram type and load corresponding templates
      */
     fun setDiagramType(diagramType: DiagramType) {
@@ -289,14 +258,6 @@ class MermaidEditorViewModel(
                 _isLoading.value = false
             }
         }
-    }
-
-
-    /**
-     * Get template content by template ID
-     */
-    fun getTemplateContent(templateId: String): String? {
-        return _availableTemplates.value.find { it.id == templateId }?.content
     }
 
 
@@ -523,7 +484,7 @@ class MermaidEditorViewModel(
                 val result = generateAiDiagramUseCase(
                     prompt = prompt,
                     diagramType = diagramType.name,
-                    provider = null // Use first available provider
+                    provider = null
                 )
 
                 if (result.isSuccess) {
@@ -563,7 +524,7 @@ class MermaidEditorViewModel(
                 if (result.isSuccess) {
                     val mermaidCode = result.getOrThrow()
                     _editorContent.value = mermaidCode
-                    // Try to infer diagram type roughly from content header
+
                     _selectedDiagramType.value = inferDiagramTypeFromMermaid(mermaidCode)
                 } else {
                     _codeGenErrorMessage.value = result.exceptionOrNull()?.message
@@ -598,8 +559,6 @@ class MermaidEditorViewModel(
     fun refreshAiAvailability() {
         checkAiAvailability()
     }
-
-    // Removed AI fix use case and method
 
     /**
      * Start auto-save timer
@@ -665,18 +624,6 @@ class MermaidEditorViewModel(
             }
         } catch (e: Exception) {
             Log.e("MermaidEditorViewModel", "Auto-save failed", e)
-        }
-    }
-
-    /**
-     * Enable or disable auto-save
-     */
-    fun setAutoSaveEnabled(enabled: Boolean) {
-        _isAutoSaveEnabled.value = enabled
-        if (enabled) {
-            startAutoSave()
-        } else {
-            autoSaveJob?.cancel()
         }
     }
 
@@ -749,6 +696,67 @@ class MermaidEditorViewModel(
      */
     fun clearPngExportResult() {
         _pngExportResult.value = null
+    }
+
+    /**
+     * Export current diagram as SVG
+     */
+    fun exportDiagramAsSvg(
+        previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
+        fileName: String = generateFileName("svg")
+    ) {
+        viewModelScope.launch {
+            try {
+                _isExportingSvg.value = true
+                _svgExportResult.value = null
+                
+                previewState.exportSVG(fileName, fileExportService) { success ->
+                    _svgExportResult.value = success
+                    
+                    Log.d(
+                        "MermaidEditorViewModel", 
+                        if (success) "SVG export successful" else "SVG export failed"
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("MermaidEditorViewModel", "Error during SVG export", e)
+                _svgExportResult.value = false
+            } finally {
+                _isExportingSvg.value = false
+            }
+        }
+    }
+
+    /**
+     * Share current diagram as SVG
+     */
+    fun shareDiagramAsSvg(
+        previewState: com.example.mermaidmaker.ui.preview.MermaidPreviewState,
+        fileName: String = generateFileName("svg")
+    ) {
+        viewModelScope.launch {
+            try {
+                _isSharingSvg.value = true
+                
+                previewState.shareSVG(fileName, fileExportService) { success ->
+                    Log.d(
+                        "MermaidEditorViewModel", 
+                        if (success) "SVG share successful" else "SVG share failed"
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("MermaidEditorViewModel", "Error during SVG share", e)
+            } finally {
+                _isSharingSvg.value = false
+            }
+        }
+    }
+
+    /**
+     * Clear SVG export result state
+     */
+    fun clearSvgExportResult() {
+        _svgExportResult.value = null
     }
 
     /**
