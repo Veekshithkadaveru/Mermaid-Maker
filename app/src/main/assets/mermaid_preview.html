@@ -584,7 +584,31 @@
         // Utility functions for getting rendered content
         function getRenderedSVG() {
             const svgElement = previewElement.querySelector('svg');
-            return svgElement ? svgElement.outerHTML : null;
+            if (!svgElement) {
+                return null;
+            }
+            
+            // Clone the SVG to avoid modifying the original
+            const svgClone = svgElement.cloneNode(true);
+            
+            // Ensure proper SVG attributes for standalone usage
+            if (!svgClone.getAttribute('xmlns')) {
+                svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            }
+            if (!svgClone.getAttribute('xmlns:xlink')) {
+                svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+            }
+            
+            // Get the outer HTML and clean it up
+            let svgString = svgClone.outerHTML;
+            
+            // Remove any problematic characters or attributes that might cause XML parsing issues
+            svgString = svgString
+                .replace(/\s+/g, ' ') // Normalize whitespace
+                .replace(/>\s+</g, '><') // Remove whitespace between tags
+                .trim();
+            
+            return svgString;
         }
         
         function getPreviewDimensions() {

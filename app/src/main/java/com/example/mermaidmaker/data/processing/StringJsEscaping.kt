@@ -21,6 +21,15 @@ fun String.unescapeFromJs(): String {
         .replace("\\\"", "\"")
         .replace("\\'", "'")
         .replace("\\\\", "\\")
+        // Handle Unicode escapes that might be in the SVG
+        .replace(Regex("\\\\u([0-9a-fA-F]{4})")) { matchResult ->
+            val hexValue = matchResult.groupValues[1]
+            try {
+                Integer.parseInt(hexValue, 16).toChar().toString()
+            } catch (_: NumberFormatException) {
+                matchResult.value
+            }
+        }
 }
 
 

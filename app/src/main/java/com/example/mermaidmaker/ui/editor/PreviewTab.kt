@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Share
@@ -59,8 +61,12 @@ fun PreviewTab(
     onCloseExplanation: () -> Unit = {},
     onExportPng: () -> Unit = {},
     onSharePng: () -> Unit = {},
+    onExportSvg: () -> Unit = {},
+    onShareSvg: () -> Unit = {},
     isExportingPng: Boolean = false,
     isSharingPng: Boolean = false,
+    isExportingSvg: Boolean = false,
+    isSharingSvg: Boolean = false,
     isExplaining: Boolean = false,
     explanation: com.example.mermaidmaker.domain.model.DiagramExplanation? = null,
     explainError: String? = null
@@ -103,7 +109,7 @@ fun PreviewTab(
                     Spacer(Modifier.width(4.dp))
                     IconButton(onClick = {
                         zoomLevel = (zoomLevel + 25).coerceAtMost(200)
-                        // Also update the hidden previewState for export
+
                         previewState.setZoom(zoomLevel / 100f)
                     }) {
                         androidx.compose.foundation.Image(
@@ -132,8 +138,31 @@ fun PreviewTab(
                                 )
                             } else {
                                 androidx.compose.foundation.Image(
-                                    painter = rememberVectorPainter(image = Icons.Filled.FileDownload),
+                                    painter = rememberVectorPainter(image = Icons.Filled.Image),
                                     contentDescription = "Download PNG"
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(8.dp))
+
+                        // SVG Download
+                        IconButton(
+                            onClick = {
+                                Log.d("MainEditorScreen", "SVG Download button clicked")
+                                onExportSvg()
+                            },
+                            enabled = !isExportingSvg
+                        ) {
+                            if (isExportingSvg) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                androidx.compose.foundation.Image(
+                                    painter = rememberVectorPainter(image = Icons.Filled.Code),
+                                    contentDescription = "Download SVG"
                                 )
                             }
                         }
@@ -175,6 +204,29 @@ fun PreviewTab(
                                 androidx.compose.foundation.Image(
                                     painter = rememberVectorPainter(image = Icons.Filled.Share),
                                     contentDescription = "Share PNG"
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(8.dp))
+
+                        // SVG Share  
+                        IconButton(
+                            onClick = {
+                                Log.d("MainEditorScreen", "SVG Share button clicked")
+                                onShareSvg()
+                            },
+                            enabled = !isSharingSvg
+                        ) {
+                            if (isSharingSvg) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                androidx.compose.foundation.Image(
+                                    painter = rememberVectorPainter(image = Icons.Filled.Share),
+                                    contentDescription = "Share SVG"
                                 )
                             }
                         }
@@ -228,7 +280,6 @@ fun PreviewTab(
                         )
                     }
 
-                    // Explanation feedback overlay (error only; content handled by container transform)
                     if (explainError != null) {
                         Card(
                             modifier = Modifier
@@ -348,6 +399,3 @@ fun PreviewTab(
         }
     }
 }
-
-
-

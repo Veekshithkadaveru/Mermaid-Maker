@@ -181,6 +181,41 @@ class MermaidPreviewState {
     }
 
     /**
+     * Ensure SVG content is valid XML with proper declarations and namespace
+     */
+    private fun ensureValidSvgXml(svgContent: String): String {
+        var processedSvg = svgContent.trim()
+        
+        Log.d("MermaidPreview", "Original SVG content (first 200 chars): ${processedSvg.take(200)}")
+        
+        // Fix common XML parsing issues
+        processedSvg = processedSvg
+            // Remove any null characters that might cause parsing issues
+            .replace("\u0000", "")
+            // Fix HTML entities to XML entities
+            .replace("&nbsp;", "&#160;")
+            // Fix unescaped ampersands that aren't part of valid XML entities
+            .replace(Regex("&(?!(?:amp|lt|gt|quot|apos|#\\d+|#x[0-9a-fA-F]+);)"), "&amp;")
+        
+        // Add XML declaration if not present
+        if (!processedSvg.startsWith("<?xml")) {
+            processedSvg = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n$processedSvg"
+        }
+        
+        // Ensure SVG has proper namespace declarations
+        if (processedSvg.contains("<svg") && !processedSvg.contains("xmlns=")) {
+            processedSvg = processedSvg.replaceFirst(
+                "<svg",
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\""
+            )
+        }
+        
+        Log.d("MermaidPreview", "Processed SVG content (first 200 chars): ${processedSvg.take(200)}")
+        
+        return processedSvg
+    }
+
+    /**
      * Get rendered SVG content
      */
     fun getRenderedSVG(callback: (String?) -> Unit) {
@@ -209,7 +244,9 @@ class MermaidPreviewState {
                     Log.e("MermaidPreview", "SVG content is blank after processing")
                     callback(null)
                 } else {
-                    callback(svg)
+                    // Ensure proper XML declaration and namespace for valid SVG
+                    val validSvg = ensureValidSvgXml(svg)
+                    callback(validSvg)
                 }
             }
         } ?: run {

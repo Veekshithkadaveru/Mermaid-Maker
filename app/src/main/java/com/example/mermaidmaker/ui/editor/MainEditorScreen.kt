@@ -7,9 +7,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -68,6 +69,9 @@ fun MainEditorScreen(
     val isExportingPng by viewModel.isExportingPng.collectAsState()
     val isSharingPng by viewModel.isSharingPng.collectAsState()
     val pngExportResult by viewModel.pngExportResult.collectAsState()
+    val isExportingSvg by viewModel.isExportingSvg.collectAsState()
+    val isSharingSvg by viewModel.isSharingSvg.collectAsState()
+    val svgExportResult by viewModel.svgExportResult.collectAsState()
     val isExplaining by viewModel.isExplaining.collectAsState()
     val explanation by viewModel.explanation.collectAsState()
     val explainError by viewModel.explainErrorMessage.collectAsState()
@@ -162,10 +166,18 @@ fun MainEditorScreen(
         }
     }
 
+    LaunchedEffect(svgExportResult) {
+        svgExportResult?.let { success ->
+            val message = if (success) "SVG exported successfully" else "Failed to export SVG"
+            snackbarScope.launch { snackbarHostState.showMessage(message) }
+            viewModel.clearSvgExportResult()
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // Tab Row (professional styling)
+            // Tab Row
             ScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
                 edgePadding = 12.dp,
@@ -174,11 +186,11 @@ fun MainEditorScreen(
                 divider = {},
                 indicator = { tabPositions ->
                     if (selectedTabIndex in tabPositions.indices) {
-                        TabRowDefaults.Indicator(
+                        TabRowDefaults.SecondaryIndicator(
                             modifier = Modifier
                                 .tabIndicatorOffset(tabPositions[selectedTabIndex])
                                 .padding(horizontal = 20.dp)
-                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)),
+                                .clip(RoundedCornerShape(6.dp)),
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -299,8 +311,16 @@ fun MainEditorScreen(
                         onSharePng = {
                             viewModel.shareDiagramAsPng(previewState)
                         },
+                        onExportSvg = {
+                            viewModel.exportDiagramAsSvg(previewState)
+                        },
+                        onShareSvg = {
+                            viewModel.shareDiagramAsSvg(previewState)
+                        },
                         isExportingPng = isExportingPng,
                         isSharingPng = isSharingPng,
+                        isExportingSvg = isExportingSvg,
+                        isSharingSvg = isSharingSvg,
                         isExplaining = isExplaining,
                         explanation = explanation,
                         explainError = explainError
